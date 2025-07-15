@@ -68,7 +68,19 @@ public class AutoAcceptConfig {
             this.nameCn = champion.getNameCn();
             this.nameEn = champion.getNameEn();
             this.title = champion.getTitle();
-            this.championId = champion.getId() != null ? Integer.parseInt(champion.getId()) : null;
+            
+            // 安全地解析 championId
+            try {
+                if (champion.getId() != null && !champion.getId().trim().isEmpty()) {
+                    this.championId = Integer.parseInt(champion.getId().trim());
+                } else {
+                    logger.warn("Champion {} has null or empty ID", champion.getKey());
+                    this.championId = null;
+                }
+            } catch (NumberFormatException e) {
+                logger.error("Failed to parse champion ID for {}: {}", champion.getKey(), champion.getId(), e);
+                this.championId = null;
+            }
         }
         
         // Getters and Setters

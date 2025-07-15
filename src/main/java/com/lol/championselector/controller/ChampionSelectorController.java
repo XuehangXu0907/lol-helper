@@ -20,6 +20,7 @@ import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 import org.slf4j.Logger;
@@ -40,10 +41,21 @@ public class ChampionSelectorController implements Initializable {
     @FXML private GridPane championGrid;
     @FXML private TextField searchField;
     @FXML private VBox skillsContainer;
+    @FXML private VBox championInfoPanel;
     @FXML private Label selectedChampionLabel;
     @FXML private Label layoutInfoLabel;
     @FXML private ProgressIndicator loadingIndicator;
     @FXML private ScrollPane championScrollPane;
+    
+    // 类型过滤按钮
+    @FXML private Button allTypesButton;
+    @FXML private Button fighterButton;
+    @FXML private Button assassinButton;
+    @FXML private Button mageButton;
+    @FXML private Button markmanButton;
+    @FXML private Button supportButton;
+    @FXML private Button tankButton;
+    @FXML private Button clearFilterButton;
     
     private final ChampionDataManager dataManager;
     private final AvatarManager avatarManager;
@@ -60,6 +72,9 @@ public class ChampionSelectorController implements Initializable {
     private boolean selectionMode = false;
     private ChampionSelectionCallback onChampionSelected;
     
+    // 类型过滤相关
+    private String currentFilter = null;
+    
     public ChampionSelectorController() {
         this.dataManager = new ChampionDataManager();
         this.avatarManager = new AvatarManager();
@@ -74,11 +89,17 @@ public class ChampionSelectorController implements Initializable {
         
         setupSearchDebounce();
         setupLoadingIndicator();
+        setupFilterButtons();
         
         Platform.runLater(() -> {
             setupResponsiveLayout();
             loadChampionsWithSkeleton();
         });
+    }
+    
+    private void setupFilterButtons() {
+        // 初始化过滤器按钮样式
+        updateFilterButtonStyles();
     }
     
     private void setupSearchDebounce() {
@@ -287,48 +308,111 @@ public class ChampionSelectorController implements Initializable {
     }
     
     private VBox createSkillBox(String skillType, Skill skill) {
-        VBox skillBox = new VBox(5);
-        skillBox.setPadding(new Insets(10));
-        skillBox.setStyle("-fx-border-color: #463714; -fx-border-width: 1px; -fx-background-color: #1e1e1e;");
+        VBox skillBox = new VBox(8);
+        skillBox.setPadding(new Insets(12));
+        skillBox.setStyle("-fx-border-color: #463714; -fx-border-width: 1px; -fx-background-color: #1e1e1e; -fx-border-radius: 5px; -fx-background-radius: 5px;");
         
-        Label titleLabel = new Label(skillType + ": " + skill.getName());
-        titleLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #c9aa71;");
+        // 技能标题（使用图标）
+        String skillIcon = getSkillIcon(skillType);
+        Label titleLabel = new Label(skillIcon + " " + skill.getName());
+        titleLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #c9aa71; -fx-font-size: 15px;");
+        skillBox.getChildren().add(titleLabel);
         
-        Label descLabel = new Label(skill.getDescription());
-        descLabel.setWrapText(true);
-        descLabel.setStyle("-fx-text-fill: #cdbe91;");
+        // 技能描述
+        if (skill.getDescription() != null && !skill.getDescription().isEmpty()) {
+            Label descLabel = new Label(skill.getDescription());
+            descLabel.setStyle("-fx-text-fill: #cccccc; -fx-font-size: 12px; -fx-wrap-text: true;");
+            descLabel.setWrapText(true);
+            descLabel.setMaxWidth(280);
+            skillBox.getChildren().add(descLabel);
+        }
         
-        skillBox.getChildren().addAll(titleLabel, descLabel);
+        // 伤害信息（更突出显示）
+        if (skill.getDamage() != null && !skill.getDamage().isEmpty()) {
+            Label damageLabel = new Label("⚔️ 伤害: " + skill.getDamage());
+            damageLabel.setStyle("-fx-text-fill: #ff6b6b; -fx-font-size: 13px; -fx-font-weight: bold;");
+            skillBox.getChildren().add(damageLabel);
+        }
         
-        // 添加技能详细信息
+        // 效果信息
+        if (skill.getEffect() != null && !skill.getEffect().isEmpty()) {
+            Label effectLabel = new Label("✨ 效果: " + skill.getEffect());
+            effectLabel.setStyle("-fx-text-fill: #4ecdc4; -fx-font-size: 12px;");
+            skillBox.getChildren().add(effectLabel);
+        }
+        
+        // 缩放信息
+        if (skill.getScaling() != null && !skill.getScaling().isEmpty()) {
+            Label scalingLabel = new Label("📊 缩放: " + skill.getScaling());
+            scalingLabel.setStyle("-fx-text-fill: #ffd93d; -fx-font-size: 12px;");
+            skillBox.getChildren().add(scalingLabel);
+        }
+        
+        // 数值信息容器（水平布局）
+        HBox statsContainer = new HBox(10);
+        
+        // 冷却时间
         if (skill.getCooldown() != null && !skill.getCooldown().isEmpty()) {
-            Label cooldownLabel = new Label("冷却时间: " + skill.getCooldown());
-            cooldownLabel.setStyle("-fx-text-fill: #87ceeb;");
-            skillBox.getChildren().add(cooldownLabel);
+            Label cooldownLabel = new Label("⏱ " + skill.getCooldown());
+            cooldownLabel.setStyle("-fx-text-fill: #87ceeb; -fx-font-size: 11px; -fx-font-weight: bold;");
+            statsContainer.getChildren().add(cooldownLabel);
         }
         
+        // 消耗
         if (skill.getCost() != null && !skill.getCost().isEmpty()) {
-            Label costLabel = new Label("消耗: " + skill.getCost());
-            costLabel.setStyle("-fx-text-fill: #87ceeb;");
-            skillBox.getChildren().add(costLabel);
+            Label costLabel = new Label("💧 " + skill.getCost());
+            costLabel.setStyle("-fx-text-fill: #4fc3f7; -fx-font-size: 11px; -fx-font-weight: bold;");
+            statsContainer.getChildren().add(costLabel);
         }
         
+        // 施放距离
         if (skill.getRange() != null && !skill.getRange().isEmpty()) {
-            Label rangeLabel = new Label("施放距离: " + skill.getRange());
-            rangeLabel.setStyle("-fx-text-fill: #87ceeb;");
-            skillBox.getChildren().add(rangeLabel);
+            Label rangeLabel = new Label("📏 " + skill.getRange());
+            rangeLabel.setStyle("-fx-text-fill: #ffb74d; -fx-font-size: 11px; -fx-font-weight: bold;");
+            statsContainer.getChildren().add(rangeLabel);
+        }
+        
+        // 伤害类型
+        if (skill.getDamageType() != null && !skill.getDamageType().isEmpty()) {
+            Label damageTypeLabel = new Label("🎯 " + skill.getDamageType());
+            damageTypeLabel.setStyle("-fx-text-fill: #ff8a65; -fx-font-size: 11px; -fx-font-weight: bold;");
+            statsContainer.getChildren().add(damageTypeLabel);
+        }
+        
+        if (!statsContainer.getChildren().isEmpty()) {
+            skillBox.getChildren().add(statsContainer);
         }
         
         return skillBox;
     }
     
+    private String getSkillIcon(String skillType) {
+        switch (skillType) {
+            case "被动技能": return "🔮";
+            case "Q 技能": return "🅠";
+            case "W 技能": return "🅦";
+            case "E 技能": return "🅔";
+            case "R 技能": return "🅡";
+            default: return "⚡";
+        }
+    }
+    
     private void performSearch(String query) {
         try {
             List<Champion> filteredChampions = dataManager.searchChampions(query);
+            
+            // 应用类型过滤
+            if (currentFilter != null) {
+                filteredChampions = filteredChampions.stream()
+                    .filter(champion -> champion.getTags().contains(currentFilter))
+                    .collect(java.util.stream.Collectors.toList());
+            }
+            
             createChampionButtons(filteredChampions);
             updateLayoutInfo();
             
-            logger.debug("Search completed for '{}': {} results", query, filteredChampions.size());
+            logger.debug("Search completed for '{}' with filter '{}': {} results", 
+                        query, currentFilter, filteredChampions.size());
         } catch (Exception e) {
             logger.error("Search failed for query: " + query, e);
             showError("搜索失败: " + e.getMessage());
@@ -383,10 +467,10 @@ public class ChampionSelectorController implements Initializable {
     public void setSelectionMode(boolean selectionMode) {
         this.selectionMode = selectionMode;
         
-        // 在选择模式下隐藏技能面板
-        if (selectionMode && skillsContainer != null) {
-            skillsContainer.setVisible(false);
-            skillsContainer.setManaged(false);
+        // 在选择模式下隐藏整个右侧英雄信息面板
+        if (selectionMode && championInfoPanel != null) {
+            championInfoPanel.setVisible(false);
+            championInfoPanel.setManaged(false);
         }
     }
     
@@ -394,6 +478,85 @@ public class ChampionSelectorController implements Initializable {
         this.onChampionSelected = callback;
     }
     
+    // 类型过滤事件处理方法
+    @FXML
+    private void onAllTypesClicked() {
+        setFilter(null);
+        updateFilterButtonStyles();
+    }
+    
+    @FXML
+    private void onFighterClicked() {
+        setFilter("Fighter");
+        updateFilterButtonStyles();
+    }
+    
+    @FXML
+    private void onAssassinClicked() {
+        setFilter("Assassin");
+        updateFilterButtonStyles();
+    }
+    
+    @FXML
+    private void onMageClicked() {
+        setFilter("Mage");
+        updateFilterButtonStyles();
+    }
+    
+    @FXML
+    private void onMarkmanClicked() {
+        setFilter("Marksman");
+        updateFilterButtonStyles();
+    }
+    
+    @FXML
+    private void onSupportClicked() {
+        setFilter("Support");
+        updateFilterButtonStyles();
+    }
+    
+    @FXML
+    private void onTankClicked() {
+        setFilter("Tank");
+        updateFilterButtonStyles();
+    }
+    
+    @FXML
+    private void onClearFilterClicked() {
+        setFilter(null);
+        updateFilterButtonStyles();
+    }
+    
+    private void setFilter(String filter) {
+        this.currentFilter = filter;
+        performSearch(searchField.getText());
+    }
+    
+    private void updateFilterButtonStyles() {
+        // 重置所有按钮样式
+        allTypesButton.getStyleClass().removeAll("active-filter");
+        fighterButton.getStyleClass().removeAll("active-filter");
+        assassinButton.getStyleClass().removeAll("active-filter");
+        mageButton.getStyleClass().removeAll("active-filter");
+        markmanButton.getStyleClass().removeAll("active-filter");
+        supportButton.getStyleClass().removeAll("active-filter");
+        tankButton.getStyleClass().removeAll("active-filter");
+        
+        // 为当前活动的过滤器添加样式
+        if (currentFilter == null) {
+            allTypesButton.getStyleClass().add("active-filter");
+        } else {
+            switch (currentFilter) {
+                case "Fighter": fighterButton.getStyleClass().add("active-filter"); break;
+                case "Assassin": assassinButton.getStyleClass().add("active-filter"); break;
+                case "Mage": mageButton.getStyleClass().add("active-filter"); break;
+                case "Marksman": markmanButton.getStyleClass().add("active-filter"); break;
+                case "Support": supportButton.getStyleClass().add("active-filter"); break;
+                case "Tank": tankButton.getStyleClass().add("active-filter"); break;
+            }
+        }
+    }
+
     public void shutdown() {
         try {
             if (searchTimeline != null) {

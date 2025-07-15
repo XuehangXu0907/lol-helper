@@ -710,6 +710,27 @@ public class ChampionDataManager {
                    Arrays.asList("辅助", "中单", "法师", "荆棘之兴", "婕拉"), "荆棘之兴", 
                    Arrays.asList("Mage", "Support"));
         
+        // 新增英雄
+        addChampion("Ambessa", "799", "Ambessa", "安蓓莎", 
+                   Arrays.asList("上单", "战士", "刺客", "战争主母", "安蓓莎"), "战争主母", 
+                   Arrays.asList("Fighter", "Assassin"));
+        
+        addChampion("KSante", "897", "K'Sante", "奎桑提", 
+                   Arrays.asList("上单", "坦克", "战士", "纳祖马的傲慢", "奎桑提"), "纳祖马的傲慢", 
+                   Arrays.asList("Tank", "Fighter"));
+        
+        addChampion("Mel", "800", "Mel", "梅尔", 
+                   Arrays.asList("中单", "辅助", "法师", "灵魂映像", "梅尔"), "灵魂映像", 
+                   Arrays.asList("Mage", "Support"));
+        
+        addChampion("Naafiri", "950", "Naafiri", "纳菲利", 
+                   Arrays.asList("中单", "刺客", "战士", "百咬之犬", "纳菲利"), "百咬之犬", 
+                   Arrays.asList("Assassin", "Fighter"));
+        
+        addChampion("Yunara", "804", "Yunara", "芸阿娜", 
+                   Arrays.asList("adc", "射手", "不破之誓", "芸阿娜"), "不破之誓", 
+                   Arrays.asList("Marksman"));
+        
         logger.info("Initialized {} champions", allChampions.size());
     }
     

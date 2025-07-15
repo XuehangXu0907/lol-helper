@@ -198,9 +198,16 @@ public class AutoAcceptController implements Initializable {
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/ChampionSelectorView.fxml"));
             Stage stage = new Stage();
-            stage.setScene(new Scene(loader.load()));
+            Scene scene = new Scene(loader.load());
+            stage.setScene(scene);
             stage.setTitle("选择" + mode + "英雄");
             stage.initModality(Modality.APPLICATION_MODAL);
+            
+            // 设置弹窗大小为更大的尺寸
+            stage.setWidth(1000);
+            stage.setHeight(600);
+            stage.setMinWidth(800);
+            stage.setMinHeight(500);
             
             ChampionSelectorController controller = loader.getController();
             controller.setSelectionMode(true);
@@ -252,17 +259,78 @@ public class AutoAcceptController implements Initializable {
     
     private void handleChampSelectSessionChanged(JsonNode session) {
         Platform.runLater(() -> {
-            appendStatus("进入英雄选择阶段");
-            
-            // 这里可以添加自动Ban/Pick逻辑
-            if (config.getChampionSelect().isAutoBanEnabled()) {
-                appendStatus("自动Ban功能已启用，等待Ban阶段...");
+            if (session == null || session.isMissingNode()) {
+                return;
             }
             
-            if (config.getChampionSelect().isAutoPickEnabled()) {
-                appendStatus("自动Pick功能已启用，等待Pick阶段...");
+            // 获取当前召唤师ID
+            JsonNode localPlayerCell = session.path("localPlayerCellId");
+            if (localPlayerCell.isMissingNode()) {
+                return;
+            }
+            int localCellId = localPlayerCell.asInt();
+            
+            // 遍历所有动作找到属于当前玩家的
+            JsonNode actions = session.path("actions");
+            if (actions.isArray()) {
+                for (JsonNode actionGroup : actions) {
+                    if (actionGroup.isArray()) {
+                        for (JsonNode action : actionGroup) {
+                            int actorCellId = action.path("actorCellId").asInt();
+                            String type = action.path("type").asText("");
+                            boolean isInProgress = action.path("isInProgress").asBoolean(false);
+                            boolean completed = action.path("completed").asBoolean(false);
+                            int actionId = action.path("id").asInt();
+                            
+                            // 只处理属于当前玩家且正在进行中的动作
+                            if (actorCellId == localCellId && isInProgress && !completed) {
+                                if ("ban".equals(type) && config.getChampionSelect().isAutoBanEnabled()) {
+                                    handleAutoBan(actionId);
+                                } else if ("pick".equals(type) && config.getChampionSelect().isAutoPickEnabled()) {
+                                    handleAutoPick(actionId);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         });
+    }
+    
+    private void handleAutoBan(int actionId) {
+        AutoAcceptConfig.ChampionInfo banChampion = config.getChampionSelect().getBanChampion();
+        if (banChampion == null || banChampion.getChampionId() == null) {
+            appendStatus("自动Ban失败：未设置Ban英雄或英雄ID无效");
+            return;
+        }
+        
+        appendStatus("正在自动Ban英雄：" + banChampion.toString());
+        lcuMonitor.banChampion(banChampion.getChampionId(), actionId)
+            .thenAccept(success -> Platform.runLater(() -> {
+                if (success) {
+                    appendStatus("✓ 成功Ban英雄：" + banChampion.toString());
+                } else {
+                    appendStatus("✗ Ban英雄失败：" + banChampion.toString());
+                }
+            }));
+    }
+    
+    private void handleAutoPick(int actionId) {
+        AutoAcceptConfig.ChampionInfo pickChampion = config.getChampionSelect().getPickChampion();
+        if (pickChampion == null || pickChampion.getChampionId() == null) {
+            appendStatus("自动Pick失败：未设置Pick英雄或英雄ID无效");
+            return;
+        }
+        
+        appendStatus("正在自动Pick英雄：" + pickChampion.toString());
+        lcuMonitor.pickChampion(pickChampion.getChampionId(), actionId)
+            .thenAccept(success -> Platform.runLater(() -> {
+                if (success) {
+                    appendStatus("✓ 成功Pick英雄：" + pickChampion.toString());
+                } else {
+                    appendStatus("✗ Pick英雄失败：" + pickChampion.toString());
+                }
+            }));
     }
     
     private void appendStatus(String message) {
@@ -286,8 +354,9 @@ public class AutoAcceptController implements Initializable {
         // 根据当前状态更新UI可用性
         boolean connected = lcuMonitor != null && lcuMonitor.isConnected();
         
-        selectBanChampionButton.setDisable(!connected);
-        selectPickChampionButton.setDisable(!connected);
+        // 允许在未连接时也可以设置英雄
+        selectBanChampionButton.setDisable(false);
+        selectPickChampionButton.setDisable(false);
     }
     
     public void shutdown() {

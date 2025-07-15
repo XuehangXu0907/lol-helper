@@ -128,22 +128,19 @@ public class LCUMonitor {
     
     private void checkChampSelect() {
         if (!isMonitoring || connection == null || currentPhase != GamePhase.CHAMP_SELECT) {
+            // 如果离开了英雄选择阶段，重置matchId
+            if (currentPhase != GamePhase.CHAMP_SELECT && currentMatchId != null) {
+                currentMatchId = null;
+            }
             return;
         }
         
         connection.get("/lol-champ-select/v1/session")
             .thenAccept(response -> {
                 if (response != null && !response.isMissingNode()) {
-                    String matchId = response.path("gameId").asText("");
-                    
-                    // 只有在新的对局或会话信息发生变化时才触发回调
-                    if (!matchId.equals(currentMatchId)) {
-                        currentMatchId = matchId;
-                        logger.debug("Champion select session changed: {}", matchId);
-                        
-                        if (onChampSelectSessionChanged != null) {
-                            onChampSelectSessionChanged.accept(response);
-                        }
+                    // 每次都触发回调，让控制器处理动作状态的变化
+                    if (onChampSelectSessionChanged != null) {
+                        onChampSelectSessionChanged.accept(response);
                     }
                 }
             })

@@ -146,6 +146,12 @@ public class SkillsManager {
                 skill.setCost(getArrayOrDefault(skillNode, "costBurn", ""));
                 skill.setRange(getArrayOrDefault(skillNode, "rangeBurn", ""));
                 skill.setDamage(extractDamageInfo(skillNode));
+                skill.setEffect(extractEffectInfo(skillNode));
+                skill.setScaling(extractScalingInfo(skillNode));
+                skill.setDamageType(extractDamageType(skillNode));
+            } else {
+                // 被动技能也可以有一些信息
+                skill.setEffect(extractPassiveEffect(skillNode));
             }
         } catch (Exception e) {
             logger.warn("Error parsing individual skill", e);
@@ -165,36 +171,89 @@ public class SkillsManager {
             return defaultValue;
         }
         
-        if (field.isArray() && field.size() > 0) {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < field.size(); i++) {
-                if (i > 0) sb.append("/");
-                sb.append(field.get(i).asText());
-            }
-            return sb.toString();
+        String value = field.asText(defaultValue);
+        if (value.isEmpty() || "0".equals(value)) {
+            return defaultValue;
         }
         
-        return field.asText(defaultValue);
+        // 处理数组格式的字符串，如 "8/7/6/5/4"
+        if (value.contains("/")) {
+            String[] parts = value.split("/");
+            StringBuilder sb = new StringBuilder();
+            boolean hasValidData = false;
+            
+            for (int i = 0; i < parts.length; i++) {
+                String part = parts[i].trim();
+                if (!part.equals("0") && !part.isEmpty()) {
+                    if (hasValidData) sb.append("/");
+                    sb.append(part);
+                    hasValidData = true;
+                }
+            }
+            
+            if (hasValidData) {
+                String result = sb.toString();
+                // 添加单位
+                if (fieldName.equals("cooldownBurn")) {
+                    return result + "秒";
+                } else if (fieldName.equals("costBurn")) {
+                    return result + "蓝";
+                }
+                return result;
+            }
+        }
+        
+        // 为单个值添加单位
+        if (!value.equals("0")) {
+            if (fieldName.equals("cooldownBurn")) {
+                return value + "秒";
+            } else if (fieldName.equals("costBurn")) {
+                return value + "蓝";
+            }
+        }
+        
+        return value.equals("0") ? defaultValue : value;
     }
     
     private String extractDamageInfo(JsonNode skillNode) {
         try {
+            // 首先尝试从 tooltip 提取实际数值
+            String tooltip = getTextOrDefault(skillNode, "tooltip", "");
+            if (!tooltip.isEmpty()) {
+                String damage = extractDamageFromTooltip(tooltip);
+                if (!damage.isEmpty() && !damage.contains("0000")) {
+                    return damage;
+                }
+            }
+            
+            // 从 effectBurn 提取（这通常包含实际的数值）
+            JsonNode effectBurn = skillNode.path("effectBurn");
+            if (effectBurn.isArray() && effectBurn.size() > 1) {
+                JsonNode damageValue = effectBurn.get(1);
+                if (damageValue != null && !damageValue.asText().equals("0")) {
+                    return damageValue.asText();
+                }
+            }
+            
+            // 最后尝试从 effect 数组提取
             JsonNode effectNode = skillNode.path("effect");
             if (effectNode.isArray() && effectNode.size() > 1) {
                 JsonNode damageArray = effectNode.get(1);
                 if (damageArray != null && damageArray.isArray()) {
                     StringBuilder damage = new StringBuilder();
+                    boolean hasValidData = false;
                     for (int i = 0; i < damageArray.size(); i++) {
-                        if (i > 0) damage.append("/");
-                        damage.append(damageArray.get(i).asText());
+                        String value = damageArray.get(i).asText();
+                        if (!value.equals("0") && !value.isEmpty()) {
+                            if (hasValidData) damage.append("/");
+                            damage.append(value);
+                            hasValidData = true;
+                        }
                     }
-                    return damage.toString();
+                    if (hasValidData) {
+                        return damage.toString();
+                    }
                 }
-            }
-            
-            String tooltip = getTextOrDefault(skillNode, "tooltip", "");
-            if (tooltip.contains("伤害")) {
-                return extractDamageFromTooltip(tooltip);
             }
             
         } catch (Exception e) {
@@ -206,16 +265,36 @@ public class SkillsManager {
     
     private String extractDamageFromTooltip(String tooltip) {
         try {
-            if (tooltip.contains("{{ e1 }}")) {
-                return "基于技能等级";
+            // 使用正则表达式提取数值模式，如 "60/90/120/150/180"
+            java.util.regex.Pattern damagePattern = java.util.regex.Pattern.compile("(\\d+(?:/\\d+){4})");
+            java.util.regex.Matcher matcher = damagePattern.matcher(tooltip);
+            if (matcher.find()) {
+                return matcher.group(1);
             }
             
-            if (tooltip.contains("法术强度")) {
-                return "法术伤害";
+            // 提取单个数值范围，如 "60-180"
+            java.util.regex.Pattern rangePattern = java.util.regex.Pattern.compile("(\\d+)(?:-|至)(\\d+)");
+            matcher = rangePattern.matcher(tooltip);
+            if (matcher.find()) {
+                return matcher.group(1) + "-" + matcher.group(2);
             }
             
-            if (tooltip.contains("攻击力")) {
-                return "物理伤害";
+            // 提取百分比数值，如 "8% - 16%"
+            java.util.regex.Pattern percentPattern = java.util.regex.Pattern.compile("(\\d+(?:\\.\\d+)?)%(?:\\s*-\\s*(\\d+(?:\\.\\d+)?)%)?");
+            matcher = percentPattern.matcher(tooltip);
+            if (matcher.find()) {
+                if (matcher.group(2) != null) {
+                    return matcher.group(1) + "%-" + matcher.group(2) + "%";
+                } else {
+                    return matcher.group(1) + "%";
+                }
+            }
+            
+            // 提取基础伤害值
+            java.util.regex.Pattern basicPattern = java.util.regex.Pattern.compile("造成(\\d+)");
+            matcher = basicPattern.matcher(tooltip);
+            if (matcher.find()) {
+                return matcher.group(1);
             }
             
         } catch (Exception e) {
@@ -231,6 +310,73 @@ public class SkillsManager {
     
     private ChampionSkills createEmptySkills() {
         return ChampionSkills.createEmpty();
+    }
+    
+    private String extractEffectInfo(JsonNode skillNode) {
+        try {
+            String tooltip = getTextOrDefault(skillNode, "tooltip", "");
+            if (tooltip.contains("眩晕") || tooltip.contains("减速") || tooltip.contains("击飞")) {
+                if (tooltip.contains("眩晕")) return "眩晕";
+                if (tooltip.contains("减速")) return "减速";
+                if (tooltip.contains("击飞")) return "击飞";
+            }
+            
+            // 从效果数组提取
+            JsonNode effectNode = skillNode.path("effect");
+            if (effectNode.isArray() && effectNode.size() > 2) {
+                JsonNode effectArray = effectNode.get(2);
+                if (effectArray != null && effectArray.isArray() && effectArray.size() > 0) {
+                    return effectArray.get(0).asText() + "效果";
+                }
+            }
+            
+        } catch (Exception e) {
+            logger.debug("Could not extract effect info", e);
+        }
+        return "";
+    }
+    
+    private String extractScalingInfo(JsonNode skillNode) {
+        try {
+            String tooltip = getTextOrDefault(skillNode, "tooltip", "");
+            if (tooltip.contains("AP") && tooltip.contains("%")) {
+                return "AP缩放";
+            }
+            if (tooltip.contains("AD") && tooltip.contains("%")) {
+                return "AD缩放";
+            }
+            if (tooltip.contains("最大生命值")) {
+                return "生命值缩放";
+            }
+        } catch (Exception e) {
+            logger.debug("Could not extract scaling info", e);
+        }
+        return "";
+    }
+    
+    private String extractDamageType(JsonNode skillNode) {
+        try {
+            String tooltip = getTextOrDefault(skillNode, "tooltip", "");
+            if (tooltip.contains("魔法伤害")) return "魔法";
+            if (tooltip.contains("物理伤害")) return "物理";
+            if (tooltip.contains("真实伤害")) return "真实";
+        } catch (Exception e) {
+            logger.debug("Could not extract damage type", e);
+        }
+        return "混合";
+    }
+    
+    private String extractPassiveEffect(JsonNode skillNode) {
+        try {
+            String desc = getTextOrDefault(skillNode, "description", "");
+            if (desc.length() > 50) {
+                return desc.substring(0, 47) + "...";
+            }
+            return desc;
+        } catch (Exception e) {
+            logger.debug("Could not extract passive effect", e);
+        }
+        return "";
     }
     
     public void clearCache() {

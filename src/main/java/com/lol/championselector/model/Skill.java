@@ -10,6 +10,9 @@ public class Skill {
     private String cost;
     private String range;
     private String damage;
+    private String effect;
+    private String scaling;
+    private String damageType;
 
     public Skill() {}
 
@@ -78,6 +81,30 @@ public class Skill {
 
     public void setDamage(String damage) {
         this.damage = damage;
+    }
+
+    public String getEffect() {
+        return effect;
+    }
+
+    public void setEffect(String effect) {
+        this.effect = effect;
+    }
+
+    public String getScaling() {
+        return scaling;
+    }
+
+    public void setScaling(String scaling) {
+        this.scaling = scaling;
+    }
+
+    public String getDamageType() {
+        return damageType;
+    }
+
+    public void setDamageType(String damageType) {
+        this.damageType = damageType;
     }
 
     @Override

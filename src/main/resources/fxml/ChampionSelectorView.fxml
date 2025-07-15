@@ -26,6 +26,20 @@
                   <Label fx:id="layoutInfoLabel" styleClass="info-label" text="" />
                </children>
             </HBox>
+            <HBox alignment="CENTER_LEFT" spacing="10.0">
+               <children>
+                  <Label text="类型过滤:" />
+                  <Button fx:id="allTypesButton" onAction="#onAllTypesClicked" styleClass="filter-button" text="全部" />
+                  <Button fx:id="fighterButton" onAction="#onFighterClicked" styleClass="filter-button" text="战士" />
+                  <Button fx:id="assassinButton" onAction="#onAssassinClicked" styleClass="filter-button" text="刺客" />
+                  <Button fx:id="mageButton" onAction="#onMageClicked" styleClass="filter-button" text="法师" />
+                  <Button fx:id="markmanButton" onAction="#onMarkmanClicked" styleClass="filter-button" text="射手" />
+                  <Button fx:id="supportButton" onAction="#onSupportClicked" styleClass="filter-button" text="辅助" />
+                  <Button fx:id="tankButton" onAction="#onTankClicked" styleClass="filter-button" text="坦克" />
+                  <Region HBox.hgrow="ALWAYS" />
+                  <Button fx:id="clearFilterButton" onAction="#onClearFilterClicked" styleClass="filter-button" text="清除过滤" />
+               </children>
+            </HBox>
          </children>
       </VBox>
    </top>
@@ -49,7 +63,7 @@
                   </ScrollPane>
                </children>
             </VBox>
-            <VBox prefWidth="350.0" spacing="10.0">
+            <VBox fx:id="championInfoPanel" prefWidth="350.0" spacing="10.0">
                <children>
                   <Label styleClass="section-title" text="英雄信息" />
                   <VBox spacing="10.0" styleClass="info-panel">
@@ -60,7 +74,7 @@
                         <Label fx:id="selectedChampionLabel" styleClass="champion-name" text="请选择一个英雄" />
                         <Separator />
                         <Label styleClass="section-subtitle" text="技能信息" />
-                        <ScrollPane fitToWidth="true" maxHeight="400.0" styleClass="skills-scroll-pane">
+                        <ScrollPane fitToWidth="true" maxHeight="600.0" styleClass="skills-scroll-pane">
                            <content>
                               <VBox fx:id="skillsContainer" spacing="8.0">
                                  <padding>
