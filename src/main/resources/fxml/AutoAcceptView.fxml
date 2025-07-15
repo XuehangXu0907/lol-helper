@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Font?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lol.championselector.controller.AutoAcceptController">
+   <top>
+      <VBox spacing="10.0" styleClass="header-section">
+         <padding>
+            <Insets bottom="10.0" left="20.0" right="20.0" top="20.0" />
+         </padding>
+         <children>
+            <HBox alignment="CENTER_LEFT" spacing="20.0">
+               <children>
+                  <Label styleClass="title" text="LOL 助手工具">
+                     <font>
+                        <Font name="Microsoft YaHei Bold" size="24.0" />
+                     </font>
+                  </Label>
+                  <Region HBox.hgrow="ALWAYS" />
+                  <Label fx:id="connectionStatusLabel" styleClass="status-label" text="未连接" />
+                  <Label fx:id="gamePhaseLabel" styleClass="phase-label" text="未在游戏中" />
+               </children>
+            </HBox>
+            <Separator />
+         </children>
+      </VBox>
+   </top>
+   <center>
+      <TabPane fx:id="mainTabPane" tabClosingPolicy="UNAVAILABLE">
+        <tabs>
+          <Tab text="自动接受">
+               <content>
+                  <VBox spacing="15.0">
+                     <padding>
+                        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+                     </padding>
+                     <children>
+                        <!-- 连接控制区域 -->
+                        <VBox spacing="10.0" styleClass="section">
+                           <children>
+                              <Label styleClass="section-title" text="连接控制">
+                                 <font>
+                                    <Font name="Microsoft YaHei Bold" size="16.0" />
+                                 </font>
+                              </Label>
+                              <HBox alignment="CENTER_LEFT" spacing="15.0">
+                                 <children>
+                                    <Button fx:id="connectButton" onAction="#onConnectClicked" text="连接游戏客户端" />
+                                    <Button fx:id="disconnectButton" disable="true" onAction="#onDisconnectClicked" text="断开连接" />
+                                    <Region HBox.hgrow="ALWAYS" />
+                                    <Label fx:id="clientStatusLabel" text="等待连接..." />
+                                 </children>
+                              </HBox>
+                           </children>
+                           <padding>
+                              <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
+                           </padding>
+                        </VBox>
+                        
+                        <!-- 自动接受设置 -->
+                        <VBox spacing="10.0" styleClass="section">
+                           <children>
+                              <Label styleClass="section-title" text="自动接受设置">
+                                 <font>
+                                    <Font name="Microsoft YaHei Bold" size="16.0" />
+                                 </font>
+                              </Label>
+                              <CheckBox fx:id="autoAcceptCheckBox" onAction="#onAutoAcceptToggled" text="启用自动接受对局" />
+                              <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                 <children>
+                                    <Label text="检查间隔:" />
+                                    <Spinner fx:id="checkIntervalSpinner" editable="true" initialValue="1000" max="5000" min="500" prefWidth="100.0" />
+                                    <Label text="毫秒" />
+                                 </children>
+                              </HBox>
+                           </children>
+                           <padding>
+                              <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
+                           </padding>
+                        </VBox>
+                        
+                        <!-- Ban/Pick设置 -->
+                        <VBox spacing="10.0" styleClass="section">
+                           <children>
+                              <Label styleClass="section-title" text="英雄选择设置">
+                                 <font>
+                                    <Font name="Microsoft YaHei Bold" size="16.0" />
+                                 </font>
+                              </Label>
+                              <CheckBox fx:id="autoBanCheckBox" onAction="#onAutoBanToggled" text="启用自动Ban英雄" />
+                              <HBox alignment="CENTER_LEFT" spacing="15.0">
+                                 <children>
+                                    <Label text="Ban英雄:" />
+                                    <Button fx:id="selectBanChampionButton" onAction="#onSelectBanChampionClicked" text="选择Ban英雄" />
+                                    <Label fx:id="banChampionLabel" text="艾克 (Ekko)" />
+                                 </children>
+                              </HBox>
+                              <CheckBox fx:id="autoPickCheckBox" onAction="#onAutoPickToggled" text="启用自动Pick英雄" />
+                              <HBox alignment="CENTER_LEFT" spacing="15.0">
+                                 <children>
+                                    <Label text="Pick英雄:" />
+                                    <Button fx:id="selectPickChampionButton" onAction="#onSelectPickChampionClicked" text="选择Pick英雄" />
+                                    <Label fx:id="pickChampionLabel" text="金克丝 (Jinx)" />
+                                 </children>
+                              </HBox>
+                           </children>
+                           <padding>
+                              <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
+                           </padding>
+                        </VBox>
+                        
+                        <!-- 状态显示 -->
+                        <VBox spacing="10.0" styleClass="section" VBox.vgrow="ALWAYS">
+                           <children>
+                              <Label styleClass="section-title" text="运行状态">
+                                 <font>
+                                    <Font name="Microsoft YaHei Bold" size="16.0" />
+                                 </font>
+                              </Label>
+                              <TextArea fx:id="statusTextArea" editable="false" prefHeight="200.0" promptText="等待状态更新..." VBox.vgrow="ALWAYS" />
+                           </children>
+                           <padding>
+                              <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
+                           </padding>
+                        </VBox>
+                     </children>
+                  </VBox>
+               </content>
+            </Tab>
+          <Tab text="英雄选择器">
+               <content>
+                  <fx:include source="ChampionSelectorView.fxml" />
+               </content>
+            </Tab>
+        </tabs>
+      </TabPane>
+   </center>
+</BorderPane>
