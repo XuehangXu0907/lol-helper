@@ -1,6 +1,0 @@
-@echo off
-cd /d "%~dp0"
-echo Starting data synchronization...
-mvn compile
-java -cp "target/classes;%USERPROFILE%\.m2\repository\org\slf4j\slf4j-api\1.7.36\slf4j-api-1.7.36.jar;%USERPROFILE%\.m2\repository\ch\qos\logback\logback-classic\1.2.12\logback-classic-1.2.12.jar;%USERPROFILE%\.m2\repository\ch\qos\logback\logback-core\1.2.12\logback-core-1.2.12.jar;%USERPROFILE%\.m2\repository\com\squareup\okhttp3\okhttp\4.10.0\okhttp-4.10.0.jar;%USERPROFILE%\.m2\repository\com\squareup\okio\okio\3.0.0\okio-3.0.0.jar;%USERPROFILE%\.m2\repository\com\fasterxml\jackson\core\jackson-core\2.14.2\jackson-core-2.14.2.jar;%USERPROFILE%\.m2\repository\com\fasterxml\jackson\core\jackson-databind\2.14.2\jackson-databind-2.14.2.jar;%USERPROFILE%\.m2\repository\com\fasterxml\jackson\core\jackson-annotations\2.14.2\jackson-annotations-2.14.2.jar;%USERPROFILE%\.m2\repository\org\jetbrains\kotlin\kotlin-stdlib\1.6.20\kotlin-stdlib-1.6.20.jar;%USERPROFILE%\.m2\repository\org\jetbrains\kotlin\kotlin-stdlib-common\1.6.20\kotlin-stdlib-common-1.6.20.jar;%USERPROFILE%\.m2\repository\org\jetbrains\annotations\13.0\annotations-13.0.jar" com.lol.championselector.DataSyncApp
-pause
