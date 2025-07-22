@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -25,7 +24,7 @@ public class CommunityDragonSyncManager {
     private static final Logger logger = LoggerFactory.getLogger(CommunityDragonSyncManager.class);
     
     private static final String BASE_URL = "https://raw.communitydragon.org/latest/game/data/characters/";
-    private static final String DATA_DIR = "champion_data/community_dragon/";
+    private static final String DATA_DIR = "src/main/resources/champion/data/community_dragon/";
     
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;

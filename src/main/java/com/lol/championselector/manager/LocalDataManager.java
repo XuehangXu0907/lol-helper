@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
 public class LocalDataManager {
     private static final Logger logger = LoggerFactory.getLogger(LocalDataManager.class);
     
-    private static final String DATA_DIR = "champion_data";
+    private static final String DATA_DIR = "src/main/resources/champion/data";
     private static final String CHAMPIONS_FILE = "champions.json";
     private static final String SKILLS_DIR = "skills";
     
@@ -70,8 +70,8 @@ public class LocalDataManager {
     
     private Champion parseChampion(JsonNode championNode) {
         try {
-            String key = championNode.path("id").asText();
-            String id = championNode.path("key").asText();
+            String key = championNode.path("key").asText();
+            String id = championNode.path("id").asText();
             String nameEn = championNode.path("name").asText();
             String nameCn = championNode.path("name").asText(); // 中文数据
             String title = championNode.path("title").asText();
@@ -405,7 +405,7 @@ public class LocalDataManager {
      */
     public void enhanceSkillsWithCommunityDragonData(String championKey, ChampionSkills skills) {
         try {
-            File communityFile = new File("champion_data/community_dragon/" + championKey + "_community.json");
+            File communityFile = new File("src/main/resources/champion/data/community_dragon/" + championKey + "_community.json");
             if (!communityFile.exists()) {
                 return;
             }

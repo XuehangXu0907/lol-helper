@@ -38,6 +38,7 @@ public class SkillsManager {
     private final Cache<String, ChampionSkills> skillsCache;
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final SkillDamageDataManager damageDataManager;
     
     public SkillsManager() {
         this.skillsCache = Caffeine.newBuilder()
@@ -52,6 +53,7 @@ public class SkillsManager {
             .build();
             
         this.objectMapper = new ObjectMapper();
+        this.damageDataManager = new SkillDamageDataManager();
     }
     
     public CompletableFuture<ChampionSkills> getSkillsAsync(String championKey) {
@@ -61,6 +63,14 @@ public class SkillsManager {
         }
         
         return CompletableFuture.supplyAsync(() -> {
+            // First try to load from local complete data
+            ChampionSkills localSkills = loadFromLocalCompleteData(championKey);
+            if (localSkills != null) {
+                skillsCache.put(championKey, localSkills);
+                return localSkills;
+            }
+            
+            // Fallback to network API
             try {
                 String version = ChampionVersionMapping.getVersion(championKey);
                 String correctedKey = getCorrectedKey(championKey);
@@ -97,7 +107,7 @@ public class SkillsManager {
                         return createEmptySkills();
                     }
                     
-                    ChampionSkills skills = parseSkillsData(championData);
+                    ChampionSkills skills = parseSkillsData(championData, championKey);
                     skillsCache.put(championKey, skills);
                     
                     return skills;
@@ -109,20 +119,34 @@ public class SkillsManager {
         }, ForkJoinPool.commonPool());
     }
     
-    private ChampionSkills parseSkillsData(JsonNode championData) {
+    private ChampionSkills parseSkillsData(JsonNode championData, String championKey) {
         ChampionSkills skills = new ChampionSkills();
         
         try {
             JsonNode passiveNode = championData.path("passive");
             if (!passiveNode.isMissingNode()) {
-                skills.setPassive(parseSkill(passiveNode, true));
+                Skill passive = parseSkill(passiveNode, true);
+                // Enhance passive with damage data
+                damageDataManager.enhanceSkillWithDamageData(passive, championKey, "passive");
+                skills.setPassive(passive);
             }
             
             JsonNode spellsArray = championData.path("spells");
             if (spellsArray.isArray()) {
                 List<Skill> spells = new ArrayList<>();
+                String[] spellKeys = {"q", "w", "e", "r"};
+                int spellIndex = 0;
+                
                 for (JsonNode spellNode : spellsArray) {
-                    spells.add(parseSkill(spellNode, false));
+                    Skill spell = parseSkill(spellNode, false);
+                    
+                    // Enhance spell with damage data
+                    if (spellIndex < spellKeys.length) {
+                        damageDataManager.enhanceSkillWithDamageData(spell, championKey, spellKeys[spellIndex]);
+                    }
+                    
+                    spells.add(spell);
+                    spellIndex++;
                 }
                 skills.setSpells(spells);
             }
@@ -139,6 +163,13 @@ public class SkillsManager {
         try {
             skill.setName(getTextOrDefault(skillNode, "name", "未知技能"));
             skill.setDescription(getTextOrDefault(skillNode, "description", ""));
+            
+            // Extract image URL for both active and passive skills
+            JsonNode imageNode = skillNode.path("image");
+            if (!imageNode.isMissingNode()) {
+                String imageFileName = getTextOrDefault(imageNode, "full", "");
+                skill.setImageUrl(imageFileName);
+            }
             
             if (!isPassive) {
                 skill.setTooltip(getTextOrDefault(skillNode, "tooltip", ""));
@@ -381,7 +412,109 @@ public class SkillsManager {
     
     public void clearCache() {
         skillsCache.invalidateAll();
+        damageDataManager.clearCache();
         logger.info("Skills cache cleared");
+    }
+    
+    /**
+     * Load skills from local complete data files
+     */
+    private ChampionSkills loadFromLocalCompleteData(String championKey) {
+        try {
+            java.io.File skillFile = new java.io.File("src/main/resources/champion/data/full", championKey + "_complete.json");
+            
+            if (!skillFile.exists()) {
+                logger.debug("Local complete data file not found for champion: {}", championKey);
+                return null;
+            }
+            
+            JsonNode rootNode = objectMapper.readTree(skillFile);
+            JsonNode skillsNode = rootNode.path("skills");
+            
+            if (skillsNode.isMissingNode()) {
+                logger.debug("Skills data missing in local file for champion: {}", championKey);
+                return null;
+            }
+            
+            ChampionSkills skills = parseLocalCompleteSkills(skillsNode, championKey);
+            logger.debug("Successfully loaded skills from local complete data for: {}", championKey);
+            return skills;
+            
+        } catch (Exception e) {
+            logger.debug("Error loading skills from local complete data for {}: {}", championKey, e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Parse skills from local complete data format
+     */
+    private ChampionSkills parseLocalCompleteSkills(JsonNode skillsNode, String championKey) {
+        ChampionSkills skills = new ChampionSkills();
+        
+        // Parse passive skill
+        JsonNode passiveNode = skillsNode.path("passive");
+        if (!passiveNode.isMissingNode()) {
+            Skill passive = parseLocalCompleteSkill(passiveNode);
+            // Enhance passive with damage data
+            damageDataManager.enhanceSkillWithDamageData(passive, championKey, "passive");
+            skills.setPassive(passive);
+        }
+        
+        // Parse active skills
+        JsonNode spellsNode = skillsNode.path("spells");
+        if (spellsNode.isArray()) {
+            List<Skill> spells = new ArrayList<>();
+            String[] spellKeys = {"q", "w", "e", "r"};
+            int spellIndex = 0;
+            
+            for (JsonNode spellNode : spellsNode) {
+                Skill spell = parseLocalCompleteSkill(spellNode);
+                
+                // Enhance spell with damage data
+                if (spellIndex < spellKeys.length) {
+                    damageDataManager.enhanceSkillWithDamageData(spell, championKey, spellKeys[spellIndex]);
+                }
+                
+                spells.add(spell);
+                spellIndex++;
+            }
+            skills.setSpells(spells);
+        }
+        
+        return skills;
+    }
+    
+    /**
+     * Parse a single skill from local complete data format
+     */
+    private Skill parseLocalCompleteSkill(JsonNode skillNode) {
+        Skill skill = new Skill();
+        
+        // Use Chinese names/descriptions by default
+        skill.setName(getTextOrDefault(skillNode, "nameZh", skillNode.path("name").asText()));
+        skill.setDescription(getTextOrDefault(skillNode, "descriptionZh", skillNode.path("description").asText()));
+        skill.setTooltip(getTextOrDefault(skillNode, "tooltipZh", skillNode.path("tooltip").asText()));
+        
+        // Extract image URL
+        JsonNode imageNode = skillNode.path("image");
+        if (!imageNode.isMissingNode()) {
+            String imageFileName = getTextOrDefault(imageNode, "full", "");
+            skill.setImageUrl(imageFileName);
+        }
+        
+        // Other properties
+        skill.setCooldown(getTextOrDefault(skillNode, "cooldownBurn", ""));
+        skill.setCost(getTextOrDefault(skillNode, "costBurn", ""));
+        skill.setRange(getTextOrDefault(skillNode, "rangeBurn", ""));
+        
+        // Extract damage from tooltip
+        String tooltip = skill.getTooltip();
+        if (tooltip != null && !tooltip.isEmpty()) {
+            skill.setDamage(extractDamageFromTooltip(tooltip));
+        }
+        
+        return skill;
     }
     
     public void shutdown() {

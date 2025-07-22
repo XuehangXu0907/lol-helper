@@ -3,6 +3,7 @@ package com.lol.championselector.model;
 import java.util.Objects;
 
 public class Skill {
+    private String id;
     private String name;
     private String description;
     private String tooltip;
@@ -13,6 +14,10 @@ public class Skill {
     private String effect;
     private String scaling;
     private String damageType;
+    private String ratio;
+    private String imageUrl;
+    private String videoUrl;
+    private Integer maxRank;
 
     public Skill() {}
 
@@ -105,6 +110,46 @@ public class Skill {
 
     public void setDamageType(String damageType) {
         this.damageType = damageType;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getRatio() {
+        return ratio;
+    }
+
+    public void setRatio(String ratio) {
+        this.ratio = ratio;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    public String getVideoUrl() {
+        return videoUrl;
+    }
+
+    public void setVideoUrl(String videoUrl) {
+        this.videoUrl = videoUrl;
+    }
+
+    public Integer getMaxRank() {
+        return maxRank;
+    }
+
+    public void setMaxRank(Integer maxRank) {
+        this.maxRank = maxRank;
     }
 
     @Override

@@ -25,7 +25,7 @@ public class EnhancedSkillDataExtractor {
             for (String champion : testChampions) {
                 System.out.println("\n=== " + champion + " ===");
                 
-                File skillFile = new File("champion_data/skills/" + champion + ".json");
+                File skillFile = new File("src/main/resources/champion/data/skills/" + champion + ".json");
                 if (skillFile.exists()) {
                     JsonNode championData = mapper.readTree(skillFile);
                     JsonNode spells = championData.path("data").path(champion).path("spells");

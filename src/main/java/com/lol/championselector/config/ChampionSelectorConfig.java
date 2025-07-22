@@ -27,8 +27,8 @@ public class ChampionSelectorConfig {
     private int windowMargin = 60;
     
     // Application configuration
-    private String applicationTitle = "英雄联盟 - 英雄选择器";
-    private String version = "1.0.0";
+    private String applicationTitle = "LOL Helper";
+    private String version = "2.1.0";
     private boolean enableLogging = true;
     private String logLevel = "INFO";
     
@@ -164,7 +164,7 @@ public class ChampionSelectorConfig {
     }
     
     public void setApplicationTitle(String applicationTitle) {
-        this.applicationTitle = applicationTitle != null ? applicationTitle : "英雄联盟 - 英雄选择器";
+        this.applicationTitle = applicationTitle != null ? applicationTitle : "LOL Auto Ban/Pick Tool";
     }
     
     public String getVersion() {

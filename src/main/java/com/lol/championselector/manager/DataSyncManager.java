@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
@@ -22,7 +21,7 @@ public class DataSyncManager {
     private static final String CHAMPIONS_API = "https://ddragon.leagueoflegends.com/cdn/%s/data/zh_CN/champion.json";
     private static final String CHAMPION_DETAIL_API = "https://ddragon.leagueoflegends.com/cdn/%s/data/zh_CN/champion/%s.json";
     
-    private static final String DATA_DIR = "champion_data";
+    private static final String DATA_DIR = "src/main/resources/champion/data";
     private static final String CHAMPIONS_FILE = "champions.json";
     private static final String VERSION_FILE = "version.txt";
     private static final String LAST_UPDATE_FILE = "last_update.txt";

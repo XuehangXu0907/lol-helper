@@ -4,6 +4,7 @@ import com.lol.championselector.manager.AvatarManager;
 import com.lol.championselector.manager.ChampionDataManager;
 import com.lol.championselector.manager.ResponsiveLayoutManager;
 import com.lol.championselector.manager.SkillsManager;
+import com.lol.championselector.manager.LanguageManager;
 import com.lol.championselector.model.Champion;
 import com.lol.championselector.model.ChampionSkills;
 import com.lol.championselector.model.Skill;
@@ -11,17 +12,17 @@ import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
-import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +62,7 @@ public class ChampionSelectorController implements Initializable {
     private final AvatarManager avatarManager;
     private final SkillsManager skillsManager;
     private final ResponsiveLayoutManager layoutManager;
+    private final LanguageManager languageManager;
     
     private Timeline searchTimeline;
     private Timeline resizeTimeline;
@@ -80,6 +82,7 @@ public class ChampionSelectorController implements Initializable {
         this.avatarManager = new AvatarManager();
         this.skillsManager = new SkillsManager();
         this.layoutManager = new ResponsiveLayoutManager();
+        this.languageManager = LanguageManager.getInstance();
         this.championButtons = new ArrayList<>();
     }
     
@@ -90,6 +93,12 @@ public class ChampionSelectorController implements Initializable {
         setupSearchDebounce();
         setupLoadingIndicator();
         setupFilterButtons();
+        updateTexts();
+        
+        // Listen for language changes
+        languageManager.currentLocaleProperty().addListener((obs, oldVal, newVal) -> {
+            updateTexts();
+        });
         
         Platform.runLater(() -> {
             setupResponsiveLayout();
@@ -207,8 +216,10 @@ public class ChampionSelectorController implements Initializable {
         button.setOnAction(e -> selectChampion(champion, button));
         
         // 设置提示文本
-        Tooltip tooltip = new Tooltip(champion.getNameCn() + " - " + champion.getTitle());
-        button.setTooltip(tooltip);
+        updateChampionTooltip(button, champion);
+        
+        // 设置用户数据
+        button.setUserData(champion);
         
         return button;
     }
@@ -250,11 +261,14 @@ public class ChampionSelectorController implements Initializable {
         
         // 更新选中英雄信息
         if (selectedChampionLabel != null) {
-            selectedChampionLabel.setText(champion.getNameCn() + " - " + champion.getTitle());
+            selectedChampionLabel.setText(getChampionDisplayName(champion) + " - " + champion.getTitle());
         }
         
         // 加载技能信息
         loadChampionSkills(champion);
+        
+        // 显示技能详情对话框
+        showSkillDetailsDialog(champion);
         
         logger.info("Selected champion: {} ({})", champion.getNameCn(), champion.getKey());
     }
@@ -578,5 +592,105 @@ public class ChampionSelectorController implements Initializable {
     @FunctionalInterface
     public interface ChampionSelectionCallback {
         void onChampionSelected(Champion champion);
+    }
+    
+    private void updateTexts() {
+        // Update search field
+        searchField.setPromptText(languageManager.getString("common.searchPlaceholder"));
+        
+        // Update filter buttons
+        allTypesButton.setText(languageManager.getString("common.all"));
+        fighterButton.setText(languageManager.getString("type.fighter"));
+        assassinButton.setText(languageManager.getString("type.assassin"));
+        mageButton.setText(languageManager.getString("type.mage"));
+        markmanButton.setText(languageManager.getString("type.marksman"));
+        supportButton.setText(languageManager.getString("type.support"));
+        tankButton.setText(languageManager.getString("type.tank"));
+        clearFilterButton.setText(languageManager.getString("common.clear"));
+        
+        // Update selected champion label
+        if (selectedChampion == null) {
+            selectedChampionLabel.setText(languageManager.getString("common.selectChampion"));
+        } else {
+            selectedChampionLabel.setText(getChampionDisplayName(selectedChampion) + " - " + selectedChampion.getTitle());
+        }
+        
+        // Update all champion button tooltips
+        updateAllChampionTooltips();
+    }
+    
+    private void updateAllChampionTooltips() {
+        for (Button button : championButtons) {
+            Champion champion = (Champion) button.getUserData();
+            if (champion != null) {
+                updateChampionTooltip(button, champion);
+            }
+        }
+    }
+    
+    private void updateChampionTooltip(Button button, Champion champion) {
+        String name = languageManager.getCurrentLanguage() == LanguageManager.Language.CHINESE ? 
+            champion.getNameCn() : champion.getNameEn();
+        Tooltip tooltip = new Tooltip(name + " - " + champion.getTitle());
+        button.setTooltip(tooltip);
+    }
+    
+    private String getChampionDisplayName(Champion champion) {
+        return languageManager.getCurrentLanguage() == LanguageManager.Language.CHINESE ? 
+            champion.getNameCn() : champion.getNameEn();
+    }
+    
+    private void showSkillDetailsDialog(Champion champion) {
+        // 如果是选择模式，不显示详情对话框
+        if (selectionMode) {
+            return;
+        }
+        
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/SkillDetailsDialog.fxml"));
+            Scene scene = new Scene(loader.load());
+            
+            SkillDetailsController controller = loader.getController();
+            controller.setChampion(champion);
+            
+            Stage stage = new Stage();
+            stage.setTitle("英雄技能详情 - " + getChampionDisplayName(champion));
+            stage.setScene(scene);
+            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.setResizable(true);
+            stage.setMinWidth(500);
+            stage.setMinHeight(600);
+            stage.setWidth(500);
+            stage.setHeight(600);
+            
+            // 加载技能数据并显示
+            skillsManager.getSkillsAsync(champion.getKey())
+                .thenAccept(skills -> Platform.runLater(() -> {
+                    controller.setSkills(skills);
+                    stage.show();
+                    
+                    // 当对话框关闭时，清理资源
+                    stage.setOnCloseRequest(e -> controller.shutdown());
+                }))
+                .exceptionally(throwable -> {
+                    Platform.runLater(() -> {
+                        logger.warn("Failed to load skills for dialog: {}", throwable.getMessage());
+                        Alert alert = new Alert(Alert.AlertType.ERROR);
+                        alert.setTitle("错误");
+                        alert.setHeaderText("技能信息加载失败");
+                        alert.setContentText("无法加载 " + getChampionDisplayName(champion) + " 的技能信息。");
+                        alert.showAndWait();
+                    });
+                    return null;
+                });
+                
+        } catch (Exception e) {
+            logger.error("Failed to show skill details dialog", e);
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("错误");
+            alert.setHeaderText("无法显示技能详情");
+            alert.setContentText("打开技能详情对话框时发生错误。");
+            alert.showAndWait();
+        }
     }
 }

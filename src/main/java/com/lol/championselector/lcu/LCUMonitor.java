@@ -9,6 +9,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.Set;
+import java.util.HashSet;
 
 public class LCUMonitor {
     private static final Logger logger = LoggerFactory.getLogger(LCUMonitor.class);
@@ -20,6 +22,7 @@ public class LCUMonitor {
     private GamePhase currentPhase = GamePhase.NONE;
     private boolean isInReadyCheck = false;
     private String currentMatchId = null;
+    private String lastChampSelectSession = null;
     
     // 回调函数
     private Consumer<GamePhase> onPhaseChanged;
@@ -64,8 +67,8 @@ public class LCUMonitor {
         // 监控准备检查
         scheduler.scheduleWithFixedDelay(this::checkReadyCheck, 0, 500, TimeUnit.MILLISECONDS);
         
-        // 监控英雄选择
-        scheduler.scheduleWithFixedDelay(this::checkChampSelect, 0, 1, TimeUnit.SECONDS);
+        // 监控英雄选择 - 使用更高频率以提高响应速度
+        scheduler.scheduleWithFixedDelay(this::checkChampSelect, 0, 500, TimeUnit.MILLISECONDS);
     }
     
     public void stopMonitoring() {
@@ -128,9 +131,11 @@ public class LCUMonitor {
     
     private void checkChampSelect() {
         if (!isMonitoring || connection == null || currentPhase != GamePhase.CHAMP_SELECT) {
-            // 如果离开了英雄选择阶段，重置matchId
+            // 如果离开了英雄选择阶段，重置相关状态
             if (currentPhase != GamePhase.CHAMP_SELECT && currentMatchId != null) {
                 currentMatchId = null;
+                lastChampSelectSession = null;
+                logger.debug("Reset champion select state as we left the phase");
             }
             return;
         }
@@ -138,9 +143,15 @@ public class LCUMonitor {
         connection.get("/lol-champ-select/v1/session")
             .thenAccept(response -> {
                 if (response != null && !response.isMissingNode()) {
-                    // 每次都触发回调，让控制器处理动作状态的变化
-                    if (onChampSelectSessionChanged != null) {
-                        onChampSelectSessionChanged.accept(response);
+                    // 检查session是否真正发生了变化，减少不必要的处理
+                    String currentSessionHash = response.toString();
+                    if (!currentSessionHash.equals(lastChampSelectSession)) {
+                        logger.debug("Champion select session changed, triggering callback");
+                        lastChampSelectSession = currentSessionHash;
+                        
+                        if (onChampSelectSessionChanged != null) {
+                            onChampSelectSessionChanged.accept(response);
+                        }
                     }
                 }
             })
@@ -200,6 +211,174 @@ public class LCUMonitor {
             });
     }
     
+    /**
+     * Hover（预选）英雄，不立即确认
+     */
+    public CompletableFuture<Boolean> hoverChampion(int championId, int actionId) {
+        if (connection == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        
+        BanPickAction action = new BanPickAction(championId, false); // completed = false 表示hover
+        return connection.patch("/lol-champ-select/v1/session/actions/" + actionId, action)
+            .thenApply(response -> {
+                logger.info("Hovered champion ID: {}", championId);
+                return true;
+            })
+            .exceptionally(throwable -> {
+                logger.error("Failed to hover champion ID: {}", championId, throwable);
+                return false;
+            });
+    }
+    
+    /**
+     * 获取当前英雄选择会话的详细信息，包括计时器
+     */
+    public CompletableFuture<JsonNode> getChampSelectSessionDetails() {
+        if (connection == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        
+        return connection.get("/lol-champ-select/v1/session")
+            .exceptionally(throwable -> {
+                logger.debug("Failed to get champ select session details", throwable);
+                return null;
+            });
+    }
+    
+    /**
+     * 获取玩家的分路位置
+     */
+    public CompletableFuture<String> getPlayerPosition() {
+        return getChampSelectSessionDetails()
+            .thenApply(session -> {
+                if (session == null || session.isMissingNode()) {
+                    return null;
+                }
+                
+                JsonNode localPlayerCell = session.path("localPlayerCellId");
+                if (localPlayerCell.isMissingNode()) {
+                    return null;
+                }
+                
+                int localCellId = localPlayerCell.asInt();
+                JsonNode myTeam = session.path("myTeam");
+                
+                if (myTeam.isArray()) {
+                    for (JsonNode teamMember : myTeam) {
+                        int cellId = teamMember.path("cellId").asInt();
+                        if (cellId == localCellId) {
+                            String position = teamMember.path("assignedPosition").asText("");
+                            logger.debug("Player position detected: {}", position);
+                            return position.isEmpty() ? null : position;
+                        }
+                    }
+                }
+                
+                return null;
+            });
+    }
+    
+    /**
+     * 获取阶段剩余时间（秒）
+     */
+    public CompletableFuture<Integer> getRemainingTimeInPhase() {
+        return getChampSelectSessionDetails()
+            .thenApply(session -> {
+                if (session == null || session.isMissingNode()) {
+                    return 0;
+                }
+                
+                JsonNode timer = session.path("timer");
+                if (timer.isMissingNode()) {
+                    return 0;
+                }
+                
+                long totalTimeInPhase = timer.path("totalTimeInPhase").asLong(0);
+                long adjustedTimeLeftInPhase = timer.path("adjustedTimeLeftInPhase").asLong(0);
+                
+                // 如果adjustedTimeLeftInPhase可用，使用它；否则计算剩余时间
+                if (adjustedTimeLeftInPhase > 0) {
+                    return (int) (adjustedTimeLeftInPhase / 1000); // 转换为秒
+                }
+                
+                // 备用计算方式
+                long phaseStartTime = timer.path("internalNowInEpochMs").asLong(0) - 
+                                     (totalTimeInPhase - adjustedTimeLeftInPhase);
+                long currentTime = System.currentTimeMillis();
+                long elapsedTime = currentTime - phaseStartTime;
+                long remainingTime = Math.max(0, totalTimeInPhase - elapsedTime);
+                
+                return (int) (remainingTime / 1000);
+            });
+    }
+    
+    /**
+     * 获取已被ban的英雄ID集合
+     */
+    public CompletableFuture<Set<Integer>> getBannedChampions() {
+        return getChampSelectSessionDetails()
+            .thenApply(session -> {
+                Set<Integer> bannedChampions = new HashSet<>();
+                
+                if (session == null || session.isMissingNode()) {
+                    return bannedChampions;
+                }
+                
+                JsonNode bans = session.path("bans");
+                if (bans.isArray()) {
+                    for (JsonNode ban : bans) {
+                        int championId = ban.path("championId").asInt(0);
+                        if (championId != 0) {
+                            bannedChampions.add(championId);
+                        }
+                    }
+                }
+                
+                return bannedChampions;
+            });
+    }
+    
+    /**
+     * 获取已被pick的英雄ID集合
+     */
+    public CompletableFuture<Set<Integer>> getPickedChampions() {
+        return getChampSelectSessionDetails()
+            .thenApply(session -> {
+                Set<Integer> pickedChampions = new HashSet<>();
+                
+                if (session == null || session.isMissingNode()) {
+                    return pickedChampions;
+                }
+                
+                // 检查双方队伍已选择的英雄
+                JsonNode myTeam = session.path("myTeam");
+                JsonNode theirTeam = session.path("theirTeam");
+                
+                // 处理我方队伍
+                if (myTeam.isArray()) {
+                    for (JsonNode member : myTeam) {
+                        int championId = member.path("championId").asInt(0);
+                        if (championId != 0) {
+                            pickedChampions.add(championId);
+                        }
+                    }
+                }
+                
+                // 处理敌方队伍
+                if (theirTeam.isArray()) {
+                    for (JsonNode member : theirTeam) {
+                        int championId = member.path("championId").asInt(0);
+                        if (championId != 0) {
+                            pickedChampions.add(championId);
+                        }
+                    }
+                }
+                
+                return pickedChampions;
+            });
+    }
+    
     // Getter和Setter方法
     public GamePhase getCurrentPhase() {
         return currentPhase;
@@ -256,6 +435,7 @@ public class LCUMonitor {
     }
     
     // 内部类用于Ban/Pick操作
+    @SuppressWarnings("unused") // Fields are used for JSON serialization
     private static class BanPickAction {
         public int championId;
         public boolean completed;

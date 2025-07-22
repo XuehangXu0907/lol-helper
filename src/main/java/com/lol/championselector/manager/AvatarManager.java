@@ -46,7 +46,7 @@ public class AvatarManager {
             .retryOnConnectionFailure(true)
             .build();
             
-        this.cacheDirectory = Paths.get("champion_avatars");
+        this.cacheDirectory = Paths.get("src/main/resources/champion/avatars");
         this.downloadExecutor = ForkJoinPool.commonPool();
         
         initializeCacheDirectory();

@@ -1,0 +1,24 @@
+# LOL Auto Ban/Pick Tool Icon Specification
+
+This is a placeholder for the application icon.
+To create an actual icon file:
+
+1. Create a 256x256 pixel image with your logo
+2. Save it as icon.png
+3. Convert to .ico format using an online converter or tool like:
+   - https://convertio.co/png-ico/
+   - https://icoconvert.com/
+   - ImageMagick: convert icon.png -resize 256x256 icon.ico
+
+Icon sizes to include in .ico file:
+- 16x16
+- 32x32
+- 48x48
+- 64x64
+- 128x128
+- 256x256
+
+Suggested icon design:
+- Background: Dark blue/purple gradient
+- Center: Stylized "Ban/Pick" symbol or LOL-inspired design
+- Text: "Auto BP" or similar abbreviation
