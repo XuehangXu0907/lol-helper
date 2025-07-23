@@ -1402,18 +1402,32 @@ public class AutoAcceptController implements Initializable {
         if (positionConfig != null) {
             // 应用Ban英雄预设
             AutoAcceptConfig.ChampionInfo preferredBan = positionConfig.getPreferredBanChampion();
+            if (preferredBan == null && positionConfig.getBanChampions() != null && !positionConfig.getBanChampions().isEmpty()) {
+                preferredBan = positionConfig.getBanChampions().get(0);
+            }
+            
             if (preferredBan != null) {
+                // 确保championId有效
+                preferredBan.ensureChampionId();
                 config.getChampionSelect().setBanChampion(preferredBan);
                 banChampionLabel.setText(preferredBan.toString());
                 loadChampionAvatar(banChampionAvatar, preferredBan.getKey());
+                logger.info("Applied position-based ban champion {} for position {}", preferredBan, position);
             }
             
             // 应用Pick英雄预设
             AutoAcceptConfig.ChampionInfo preferredPick = positionConfig.getPreferredPickChampion();
+            if (preferredPick == null && positionConfig.getPickChampions() != null && !positionConfig.getPickChampions().isEmpty()) {
+                preferredPick = positionConfig.getPickChampions().get(0);
+            }
+            
             if (preferredPick != null) {
+                // 确保championId有效
+                preferredPick.ensureChampionId();
                 config.getChampionSelect().setPickChampion(preferredPick);
                 pickChampionLabel.setText(preferredPick.toString());
                 loadChampionAvatar(pickChampionAvatar, preferredPick.getKey());
+                logger.info("Applied position-based pick champion {} for position {}", preferredPick, position);
             }
             
             saveConfiguration();

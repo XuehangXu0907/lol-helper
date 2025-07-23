@@ -47,7 +47,7 @@ public class AutoAcceptConfig {
         
         // 新增：智能时机控制
         private boolean smartTimingEnabled = true; // 启用智能时机控制
-        private int banExecutionDelaySeconds = 2; // Ban阶段剩余秒数时执行
+        private int banExecutionDelaySeconds = 1; // Ban阶段剩余秒数时执行
         private int pickExecutionDelaySeconds = 2; // Pick阶段剩余秒数时执行
         private boolean enableHover = true; // 启用hover预选
         
@@ -225,6 +225,8 @@ public class AutoAcceptConfig {
             this.nameCn = nameCn;
             this.nameEn = key; // 默认使用key作为英文名
             this.title = title;
+            // 尝试从ChampionDataManager获取championId
+            this.championId = getChampionIdByKey(key);
         }
         
         public ChampionInfo(Champion champion) {
@@ -262,6 +264,190 @@ public class AutoAcceptConfig {
         
         public Integer getChampionId() { return championId; }
         public void setChampionId(Integer championId) { this.championId = championId; }
+        
+        /**
+         * 根据英雄key获取championId的工具方法
+         */
+        private static Integer getChampionIdByKey(String key) {
+            if (key == null || key.trim().isEmpty()) {
+                return null;
+            }
+            
+            // 简化的ID映射表，基于常见英雄
+            Map<String, Integer> keyToIdMap = new HashMap<>();
+            keyToIdMap.put("Aatrox", 266);
+            keyToIdMap.put("Ahri", 103);
+            keyToIdMap.put("Akali", 84);
+            keyToIdMap.put("Alistar", 12);
+            keyToIdMap.put("Ammu", 32);
+            keyToIdMap.put("Anivia", 34);
+            keyToIdMap.put("Annie", 1);
+            keyToIdMap.put("Aphelios", 523);
+            keyToIdMap.put("Ashe", 22);
+            keyToIdMap.put("AurelionSol", 136);
+            keyToIdMap.put("Azir", 268);
+            keyToIdMap.put("Bard", 432);
+            keyToIdMap.put("Blitzcrank", 53);
+            keyToIdMap.put("Brand", 63);
+            keyToIdMap.put("Braum", 201);
+            keyToIdMap.put("Caitlyn", 51);
+            keyToIdMap.put("Camille", 164);
+            keyToIdMap.put("Cassiopeia", 69);
+            keyToIdMap.put("Chogath", 31);
+            keyToIdMap.put("Corki", 42);
+            keyToIdMap.put("Darius", 122);
+            keyToIdMap.put("Diana", 131);
+            keyToIdMap.put("DrMundo", 36);
+            keyToIdMap.put("Draven", 119);
+            keyToIdMap.put("Ekko", 245);
+            keyToIdMap.put("Elise", 60);
+            keyToIdMap.put("Evelynn", 28);
+            keyToIdMap.put("Ezreal", 81);
+            keyToIdMap.put("Fiddlesticks", 9);
+            keyToIdMap.put("Fiora", 114);
+            keyToIdMap.put("Fizz", 105);
+            keyToIdMap.put("Galio", 3);
+            keyToIdMap.put("Gangplank", 41);
+            keyToIdMap.put("Garen", 86);
+            keyToIdMap.put("Gnar", 150);
+            keyToIdMap.put("Gragas", 79);
+            keyToIdMap.put("Graves", 104);
+            keyToIdMap.put("Gwen", 887);
+            keyToIdMap.put("Hecarim", 120);
+            keyToIdMap.put("Heimerdinger", 74);
+            keyToIdMap.put("Illaoi", 420);
+            keyToIdMap.put("Irelia", 39);
+            keyToIdMap.put("Ivern", 427);
+            keyToIdMap.put("Janna", 40);
+            keyToIdMap.put("JarvanIV", 59);
+            keyToIdMap.put("Jax", 24);
+            keyToIdMap.put("Jayce", 126);
+            keyToIdMap.put("Jhin", 202);
+            keyToIdMap.put("Jinx", 222);
+            keyToIdMap.put("Kaisa", 145);
+            keyToIdMap.put("Kalista", 429);
+            keyToIdMap.put("Karma", 43);
+            keyToIdMap.put("Karthus", 30);
+            keyToIdMap.put("Kassadin", 38);
+            keyToIdMap.put("Katarina", 55);
+            keyToIdMap.put("Kayle", 10);
+            keyToIdMap.put("Kayn", 141);
+            keyToIdMap.put("Kennen", 85);
+            keyToIdMap.put("Khazix", 121);
+            keyToIdMap.put("Kindred", 203);
+            keyToIdMap.put("Kled", 240);
+            keyToIdMap.put("KogMaw", 96);
+            keyToIdMap.put("Leblanc", 7);
+            keyToIdMap.put("LeeSin", 64);
+            keyToIdMap.put("Leona", 89);
+            keyToIdMap.put("Lillia", 876);
+            keyToIdMap.put("Lissandra", 127);
+            keyToIdMap.put("Lucian", 236);
+            keyToIdMap.put("Lulu", 117);
+            keyToIdMap.put("Lux", 99);
+            keyToIdMap.put("Malphite", 54);
+            keyToIdMap.put("Malzahar", 90);
+            keyToIdMap.put("Maokai", 57);
+            keyToIdMap.put("MasterYi", 11);
+            keyToIdMap.put("MissFortune", 21);
+            keyToIdMap.put("Mordekaiser", 82);
+            keyToIdMap.put("Morgana", 25);
+            keyToIdMap.put("Nami", 267);
+            keyToIdMap.put("Nasus", 75);
+            keyToIdMap.put("Nautilus", 111);
+            keyToIdMap.put("Neeko", 518);
+            keyToIdMap.put("Nidalee", 76);
+            keyToIdMap.put("Nocturne", 56);
+            keyToIdMap.put("Nunu", 20);
+            keyToIdMap.put("Olaf", 2);
+            keyToIdMap.put("Orianna", 61);
+            keyToIdMap.put("Ornn", 516);
+            keyToIdMap.put("Pantheon", 80);
+            keyToIdMap.put("Poppy", 78);
+            keyToIdMap.put("Pyke", 555);
+            keyToIdMap.put("Qiyana", 246);
+            keyToIdMap.put("Quinn", 133);
+            keyToIdMap.put("Rakan", 497);
+            keyToIdMap.put("Rammus", 33);
+            keyToIdMap.put("RekSai", 421);
+            keyToIdMap.put("Rell", 526);
+            keyToIdMap.put("Renata", 888);
+            keyToIdMap.put("Renekton", 58);
+            keyToIdMap.put("Rengar", 107);
+            keyToIdMap.put("Riven", 92);
+            keyToIdMap.put("Rumble", 68);
+            keyToIdMap.put("Ryze", 13);
+            keyToIdMap.put("Samira", 360);
+            keyToIdMap.put("Sejuani", 113);
+            keyToIdMap.put("Senna", 235);
+            keyToIdMap.put("Seraphine", 147);
+            keyToIdMap.put("Sett", 875);
+            keyToIdMap.put("Shaco", 35);
+            keyToIdMap.put("Shen", 98);
+            keyToIdMap.put("Shyvana", 102);
+            keyToIdMap.put("Singed", 27);
+            keyToIdMap.put("Sion", 14);
+            keyToIdMap.put("Sivir", 15);
+            keyToIdMap.put("Skarner", 72);
+            keyToIdMap.put("Sona", 37);
+            keyToIdMap.put("Soraka", 16);
+            keyToIdMap.put("Swain", 50);
+            keyToIdMap.put("Sylas", 517);
+            keyToIdMap.put("Syndra", 134);
+            keyToIdMap.put("TahmKench", 223);
+            keyToIdMap.put("Taliyah", 163);
+            keyToIdMap.put("Talon", 91);
+            keyToIdMap.put("Taric", 44);
+            keyToIdMap.put("Teemo", 17);
+            keyToIdMap.put("Thresh", 412);
+            keyToIdMap.put("Tristana", 18);
+            keyToIdMap.put("Trundle", 48);
+            keyToIdMap.put("Tryndamere", 23);
+            keyToIdMap.put("TwistedFate", 4);
+            keyToIdMap.put("Twitch", 29);
+            keyToIdMap.put("Udyr", 77);
+            keyToIdMap.put("Urgot", 6);
+            keyToIdMap.put("Varus", 110);
+            keyToIdMap.put("Vayne", 67);
+            keyToIdMap.put("Veigar", 45);
+            keyToIdMap.put("Velkoz", 161);
+            keyToIdMap.put("Vex", 711);
+            keyToIdMap.put("Vi", 254);
+            keyToIdMap.put("Viego", 234);
+            keyToIdMap.put("Viktor", 112);
+            keyToIdMap.put("Vladimir", 8);
+            keyToIdMap.put("Volibear", 106);
+            keyToIdMap.put("Warwick", 19);
+            keyToIdMap.put("Wukong", 62);
+            keyToIdMap.put("Xayah", 498);
+            keyToIdMap.put("Xerath", 101);
+            keyToIdMap.put("XinZhao", 5);
+            keyToIdMap.put("Yasuo", 157);
+            keyToIdMap.put("Yone", 777);
+            keyToIdMap.put("Yorick", 83);
+            keyToIdMap.put("Yuumi", 350);
+            keyToIdMap.put("Zac", 154);
+            keyToIdMap.put("Zed", 238);
+            keyToIdMap.put("Zeri", 221);
+            keyToIdMap.put("Ziggs", 115);
+            keyToIdMap.put("Zilean", 26);
+            keyToIdMap.put("Zoe", 142);
+            keyToIdMap.put("Zyra", 143);
+            
+            return keyToIdMap.get(key);
+        }
+        
+        /**
+         * 确保championId有效的方法
+         */
+        public void ensureChampionId() {
+            if (this.championId == null && this.key != null) {
+                this.championId = getChampionIdByKey(this.key);
+                if (this.championId != null) {
+                    logger.debug("Auto-resolved championId {} for key {}", this.championId, this.key);
+                }
+            }
+        }
         
         @Override
         public String toString() {

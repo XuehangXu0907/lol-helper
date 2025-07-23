@@ -150,6 +150,7 @@ public class SmartTimingManager {
      */
     private AutoAcceptConfig.ChampionInfo selectBanChampion(AutoAcceptConfig.ChampionInfo defaultBanChampion, String playerPosition) {
         if (!config.getChampionSelect().isUsePositionBasedSelection() || playerPosition == null) {
+            logger.debug("Position-based selection disabled or no position, using default ban champion");
             return defaultBanChampion;
         }
         
@@ -159,23 +160,32 @@ public class SmartTimingManager {
             return defaultBanChampion;
         }
         
-        // 获取已被ban的英雄，选择备选英雄
-        return lcuMonitor.getBannedChampions()
-            .thenApply(bannedChampions -> {
-                AutoAcceptConfig.ChampionInfo alternateBan = positionConfig.getAlternateBanChampion(bannedChampions);
-                if (alternateBan != null) {
-                    logger.info("Selected position-based ban champion {} for position {}", alternateBan, playerPosition);
-                    return alternateBan;
-                } else {
-                    logger.debug("No available position-based ban champion for position {}, using default", playerPosition);
-                    return defaultBanChampion;
+        // 优先使用分路配置的首选ban英雄
+        AutoAcceptConfig.ChampionInfo preferredBan = positionConfig.getPreferredBanChampion();
+        if (preferredBan != null) {
+            // 确保championId有效
+            preferredBan.ensureChampionId();
+            if (preferredBan.getChampionId() != null) {
+                logger.info("Selected position-based ban champion {} for position {}", preferredBan, playerPosition);
+                return preferredBan;
+            } else {
+                logger.warn("Position-based ban champion {} has invalid championId", preferredBan);
+            }
+        }
+        
+        // 如果分路配置中有ban英雄列表，选择第一个有效的
+        if (positionConfig.getBanChampions() != null && !positionConfig.getBanChampions().isEmpty()) {
+            for (AutoAcceptConfig.ChampionInfo banCandidate : positionConfig.getBanChampions()) {
+                banCandidate.ensureChampionId();
+                if (banCandidate.getChampionId() != null) {
+                    logger.info("Selected ban champion {} from position config for {}", banCandidate, playerPosition);
+                    return banCandidate;
                 }
-            })
-            .exceptionally(throwable -> {
-                logger.warn("Failed to get banned champions, using default ban", throwable);
-                return defaultBanChampion;
-            })
-            .join(); // 同步等待结果
+            }
+        }
+        
+        logger.debug("No valid position-based ban champion found for position {}, using default", playerPosition);
+        return defaultBanChampion;
     }
     
     /**
@@ -183,6 +193,7 @@ public class SmartTimingManager {
      */
     private AutoAcceptConfig.ChampionInfo selectPickChampion(AutoAcceptConfig.ChampionInfo defaultPickChampion, String playerPosition) {
         if (!config.getChampionSelect().isUsePositionBasedSelection() || playerPosition == null) {
+            logger.debug("Position-based selection disabled or no position, using default pick champion");
             return defaultPickChampion;
         }
         
@@ -192,29 +203,32 @@ public class SmartTimingManager {
             return defaultPickChampion;
         }
         
-        // 获取已被ban和pick的英雄，选择备选英雄
-        CompletableFuture<Set<Integer>> bannedFuture = lcuMonitor.getBannedChampions();
-        CompletableFuture<Set<Integer>> pickedFuture = lcuMonitor.getPickedChampions();
+        // 优先使用分路配置的首选pick英雄
+        AutoAcceptConfig.ChampionInfo preferredPick = positionConfig.getPreferredPickChampion();
+        if (preferredPick != null) {
+            // 确保championId有效
+            preferredPick.ensureChampionId();
+            if (preferredPick.getChampionId() != null) {
+                logger.info("Selected position-based pick champion {} for position {}", preferredPick, playerPosition);
+                return preferredPick;
+            } else {
+                logger.warn("Position-based pick champion {} has invalid championId", preferredPick);
+            }
+        }
         
-        return CompletableFuture.allOf(bannedFuture, pickedFuture)
-            .thenApply(v -> {
-                Set<Integer> bannedChampions = bannedFuture.join();
-                Set<Integer> pickedChampions = pickedFuture.join();
-                
-                AutoAcceptConfig.ChampionInfo alternatePick = positionConfig.getAlternatePickChampion(bannedChampions, pickedChampions);
-                if (alternatePick != null) {
-                    logger.info("Selected position-based pick champion {} for position {}", alternatePick, playerPosition);
-                    return alternatePick;
-                } else {
-                    logger.debug("No available position-based pick champion for position {}, using default", playerPosition);
-                    return defaultPickChampion;
+        // 如果分路配置中有pick英雄列表，选择第一个有效的
+        if (positionConfig.getPickChampions() != null && !positionConfig.getPickChampions().isEmpty()) {
+            for (AutoAcceptConfig.ChampionInfo pickCandidate : positionConfig.getPickChampions()) {
+                pickCandidate.ensureChampionId();
+                if (pickCandidate.getChampionId() != null) {
+                    logger.info("Selected pick champion {} from position config for {}", pickCandidate, playerPosition);
+                    return pickCandidate;
                 }
-            })
-            .exceptionally(throwable -> {
-                logger.warn("Failed to get banned/picked champions, using default pick", throwable);
-                return defaultPickChampion;
-            })
-            .join(); // 同步等待结果
+            }
+        }
+        
+        logger.debug("No valid position-based pick champion found for position {}, using default", playerPosition);
+        return defaultPickChampion;
     }
     
     /**
@@ -231,18 +245,40 @@ public class SmartTimingManager {
                     int actionId = entry.getKey();
                     PendingAction pendingAction = entry.getValue();
                     
-                    // 检查是否到了执行时间
-                    if (remainingSeconds <= pendingAction.getExecutionDelaySeconds()) {
+                    // 检查是否到了执行时间（增加最小剩余时间保护）
+                    if (remainingSeconds <= pendingAction.getExecutionDelaySeconds() && remainingSeconds >= 0.3) {
                         logger.info("Executing {} for action {} (remaining time: {}s)", 
                                    pendingAction.getActionType(), actionId, remainingSeconds);
                         
-                        if ("ban".equals(pendingAction.getActionType())) {
-                            executeBan(actionId, pendingAction.getChampion());
-                        } else if ("pick".equals(pendingAction.getActionType())) {
-                            executePick(actionId, pendingAction.getChampion());
-                        }
+                        // 执行前再次确认剩余时间，避免网络延迟导致的时机错误
+                        lcuMonitor.getRemainingTimeInPhase().thenAccept(currentRemaining -> {
+                            if (currentRemaining >= 0.5) { // 确保至少还有0.5秒缓冲时间
+                                if ("ban".equals(pendingAction.getActionType())) {
+                                    executeBan(actionId, pendingAction.getChampion());
+                                } else if ("pick".equals(pendingAction.getActionType())) {
+                                    executePick(actionId, pendingAction.getChampion());
+                                }
+                            } else {
+                                logger.warn("Skipped {} for action {} due to insufficient remaining time: {}s", 
+                                           pendingAction.getActionType(), actionId, currentRemaining);
+                            }
+                        }).exceptionally(throwable -> {
+                            logger.warn("Failed to verify remaining time, executing {} for action {} anyway", 
+                                       pendingAction.getActionType(), actionId);
+                            if ("ban".equals(pendingAction.getActionType())) {
+                                executeBan(actionId, pendingAction.getChampion());
+                            } else if ("pick".equals(pendingAction.getActionType())) {
+                                executePick(actionId, pendingAction.getChampion());
+                            }
+                            return null;
+                        });
                         
                         return true; // 移除已执行的action
+                    } else if (remainingSeconds < 0.3) {
+                        // 剩余时间过少，跳过执行
+                        logger.warn("Skipped {} for action {} due to insufficient time: {}s", 
+                                   pendingAction.getActionType(), actionId, remainingSeconds);
+                        return true; // 移除超时的action
                     }
                     
                     return false; // 保留未到执行时间的action
@@ -258,10 +294,21 @@ public class SmartTimingManager {
      * 执行Ban操作
      */
     private void executeBan(int actionId, AutoAcceptConfig.ChampionInfo banChampion) {
-        if (banChampion == null || banChampion.getChampionId() == null) {
-            logger.warn("Invalid ban champion for action {}", actionId);
+        if (banChampion == null) {
+            logger.warn("Ban champion is null for action {}", actionId);
             return;
         }
+        
+        // 确保championId有效
+        banChampion.ensureChampionId();
+        if (banChampion.getChampionId() == null) {
+            logger.error("Invalid championId for ban champion {} (key: {}) for action {}", 
+                        banChampion, banChampion.getKey(), actionId);
+            return;
+        }
+        
+        logger.info("Executing ban for champion {} (ID: {}) on action {}", 
+                   banChampion, banChampion.getChampionId(), actionId);
         
         lcuMonitor.banChampion(banChampion.getChampionId(), actionId)
             .thenAccept(success -> {
@@ -270,6 +317,10 @@ public class SmartTimingManager {
                 } else {
                     logger.warn("Failed to execute ban {} for action {}", banChampion, actionId);
                 }
+            })
+            .exceptionally(throwable -> {
+                logger.error("Exception while executing ban {} for action {}", banChampion, actionId, throwable);
+                return null;
             });
     }
     
@@ -277,10 +328,21 @@ public class SmartTimingManager {
      * 执行Pick操作
      */
     private void executePick(int actionId, AutoAcceptConfig.ChampionInfo pickChampion) {
-        if (pickChampion == null || pickChampion.getChampionId() == null) {
-            logger.warn("Invalid pick champion for action {}", actionId);
+        if (pickChampion == null) {
+            logger.warn("Pick champion is null for action {}", actionId);
             return;
         }
+        
+        // 确保championId有效
+        pickChampion.ensureChampionId();
+        if (pickChampion.getChampionId() == null) {
+            logger.error("Invalid championId for pick champion {} (key: {}) for action {}", 
+                        pickChampion, pickChampion.getKey(), actionId);
+            return;
+        }
+        
+        logger.info("Executing pick for champion {} (ID: {}) on action {}", 
+                   pickChampion, pickChampion.getChampionId(), actionId);
         
         lcuMonitor.pickChampion(pickChampion.getChampionId(), actionId)
             .thenAccept(success -> {
@@ -289,6 +351,10 @@ public class SmartTimingManager {
                 } else {
                     logger.warn("Failed to execute pick {} for action {}", pickChampion, actionId);
                 }
+            })
+            .exceptionally(throwable -> {
+                logger.error("Exception while executing pick {} for action {}", pickChampion, actionId, throwable);
+                return null;
             });
     }
     
