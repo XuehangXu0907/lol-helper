@@ -25,26 +25,26 @@
 }
 
 .title {
-    -fx-font-size: 24px;
+    -fx-font-size: 28px;
     -fx-font-weight: bold;
     -fx-text-fill: #C9AA71;
 }
 
 .section-title {
-    -fx-font-size: 16px;
+    -fx-font-size: 18px;
     -fx-font-weight: bold;
     -fx-text-fill: #C9AA71;
 }
 
 .section-subtitle {
-    -fx-font-size: 14px;
+    -fx-font-size: 16px;
     -fx-font-weight: bold;
     -fx-text-fill: #C9AA71;
 }
 
 .info-label {
     -fx-text-fill: #87ceeb;
-    -fx-font-size: 12px;
+    -fx-font-size: 13px;
 }
 
 /* Search field */
@@ -52,12 +52,13 @@
     -fx-background-color: #2c2c2c;
     -fx-border-color: #463714;
     -fx-border-width: 2px;
-    -fx-border-radius: 3px;
-    -fx-background-radius: 3px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
     -fx-text-fill: #CDBE91;
     -fx-prompt-text-fill: #888;
-    -fx-font-size: 13px;
-    -fx-padding: 8px;
+    -fx-font-size: 14px;
+    -fx-padding: 10px;
+    -fx-pref-height: 40px;
 }
 
 .text-field:focused {
@@ -137,7 +138,7 @@
 }
 
 .champion-name {
-    -fx-font-size: 18px;
+    -fx-font-size: 20px;
     -fx-font-weight: bold;
     -fx-text-fill: #C9AA71;
 }
@@ -246,13 +247,14 @@
     -fx-background-color: #2c2c2c;
     -fx-border-color: #463714;
     -fx-border-width: 1px;
-    -fx-border-radius: 5px;
-    -fx-background-radius: 5px;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
     -fx-text-fill: #CDBE91;
-    -fx-font-size: 12px;
-    -fx-padding: 6px 12px;
-    -fx-min-width: 60px;
+    -fx-font-size: 13px;
+    -fx-padding: 8px 16px;
+    -fx-min-width: 70px;
     -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 3, 0.2, 0, 1);
 }
 
 .filter-button:hover {
@@ -265,4 +267,61 @@
     -fx-border-color: #C89B3C;
     -fx-text-fill: #0F1419;
     -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, #C89B3C, 6, 0.4, 0, 0);
+}
+
+/* 性能优化：虚拟化和缓存 */
+.champion-grid .champion-button {
+    -fx-cache: true;
+    -fx-cache-hint: speed;
+}
+
+/* 增强的视觉效果 */
+.header {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 8, 0.3, 0, 2);
+}
+
+.info-panel {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 12, 0.4, 0, 3);
+}
+
+/* 搜索框增强 */
+.text-field:focused {
+    -fx-border-color: #C89B3C;
+    -fx-effect: dropshadow(gaussian, #C89B3C, 8, 0.6, 0, 0);
+    -fx-background-color: #333333;
+}
+
+/* 过渡动画优化 */
+.champion-button,
+.filter-button {
+    -fx-transition: all 0.15s ease-out;
+}
+
+.filter-button:hover {
+    -fx-background-color: #3c3c3c;
+    -fx-border-color: #C89B3C;
+    -fx-effect: dropshadow(gaussian, rgba(200,155,60,0.4), 4, 0.3, 0, 1);
+}
+
+/* 加载指示器样式增强 */
+.progress-indicator {
+    -fx-progress-color: #C89B3C;
+    -fx-effect: dropshadow(gaussian, #C89B3C, 4, 0.4, 0, 0);
+}
+
+/* 响应式布局改进 */
+.champion-scroll-pane {
+    -fx-fit-to-width: true;
+    -fx-hbar-policy: never;
+    -fx-vbar-policy: as-needed;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 6, 0.2, 0, 2);
+}
+
+/* 工具提示增强 */
+.tooltip {
+    -fx-show-delay: 500ms;
+    -fx-hide-delay: 200ms;
+    -fx-max-width: 300px;
+    -fx-wrap-text: true;
 }

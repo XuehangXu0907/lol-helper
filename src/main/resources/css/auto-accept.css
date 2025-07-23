@@ -1,20 +1,20 @@
 /* 主界面样式 */
 .root {
     -fx-font-family: "Microsoft YaHei", "SimSun", sans-serif;
-    -fx-font-size: 12px;
+    -fx-font-size: 14px;
     -fx-background-color: #f8f9fa;
 }
 
 /* 标题样式 */
 .title {
     -fx-font-weight: bold;
-    -fx-font-size: 14px;
+    -fx-font-size: 18px;
     -fx-text-fill: #2196F3;
 }
 
 /* 小状态文字 */
 .status-small {
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
     -fx-text-fill: #666;
     -fx-wrap-text: true;
     -fx-text-alignment: left;
@@ -29,7 +29,7 @@
 
 /* 提示文字 */
 .hint-small {
-    -fx-font-size: 10px;
+    -fx-font-size: 11px;
     -fx-text-fill: #888;
     -fx-wrap-text: true;
     -fx-text-alignment: left;
@@ -117,7 +117,7 @@
     -fx-border-radius: 4;
     -fx-background-radius: 4;
     -fx-font-family: "Consolas", "Microsoft YaHei", monospace;
-    -fx-font-size: 12px;
+    -fx-font-size: 13px;
 }
 
 .text-area .content {
@@ -195,7 +195,7 @@
 .status-text-area {
     -fx-wrap-text: true;
     -fx-font-family: "Microsoft YaHei", "SimSun", monospace;
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
     -fx-background-color: #fafafa;
     -fx-border-color: #e0e0e0;
     -fx-border-radius: 4;
@@ -211,4 +211,86 @@
 .responsive-container .label {
     -fx-wrap-text: true;
     -fx-max-width: infinity;
+}
+
+/* 卡片式样式 */
+.card {
+    -fx-background-color: white;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-border-color: #e8e8e8;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 6, 0, 0, 2);
+}
+
+.card:hover {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 8, 0, 0, 3);
+}
+
+.card-title {
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-text-fill: #333333;
+    -fx-padding: 0 0 5 0;
+}
+
+/* 主题按钮样式 */
+.primary-button {
+    -fx-background-color: #2196F3;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 6 16 6 16;
+    -fx-cursor: hand;
+}
+
+.primary-button:hover {
+    -fx-background-color: #1976D2;
+}
+
+.secondary-button {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #2196F3;
+    -fx-font-weight: normal;
+    -fx-border-color: #2196F3;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 5 12 5 12;
+    -fx-cursor: hand;
+}
+
+.secondary-button:hover {
+    -fx-background-color: #E3F2FD;
+}
+
+/* TabPane 样式增强 */
+.tab-content {
+    -fx-background-color: #f8f9fa;
+}
+
+/* 状态面板样式 */
+.status-pane {
+    -fx-text-fill: #666666;
+}
+
+.status-pane > .title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.status-pane > .content {
+    -fx-background-color: white;
+    -fx-border-color: #e0e0e0;
+}
+
+/* 头部栏样式 */
+.header-bar {
+    -fx-background-color: white;
+    -fx-border-color: #e0e0e0;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 4, 0, 0, 1);
 }

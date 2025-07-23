@@ -28,10 +28,10 @@ echo.
 
 REM 设置变量
 set APP_NAME=LOLHelper
-set APP_VERSION=2.1.0
+set APP_VERSION=2.2.0
 set VENDOR=LOL Helper Team
 set MAIN_CLASS=com.lol.championselector.Launcher
-set JAR_NAME=lol-auto-ban-pick-tool-2.1.0
+set JAR_NAME=lol-auto-ban-pick-tool-2.2.0
 
 echo [1/5] 检查Java版本...
 java -version 2>&1 | findstr /C:"17" /C:"18" /C:"19" /C:"20" /C:"21" >nul
@@ -136,7 +136,7 @@ jpackage --type msi ^
          --win-menu ^
          --win-dir-chooser ^
          --win-shortcut ^
-         --description "英雄联盟助手 v2.1 - 修复弹窗抑制逻辑、智能session管理、自动连接重连、系统托盘、多语言支持" ^
+         --description "英雄联盟助手 v2.2 - 新增分路预设功能、智能英雄配置管理、弹窗抑制、自动连接重连、系统托盘、多语言支持" ^
          --copyright "Copyright (c) 2025 LOL Helper Team" %ICON_PARAM%
 
 if %errorlevel% neq 0 (
@@ -183,10 +183,13 @@ echo ✅ 包含完整Java运行时
 echo ✅ 系统托盘最小化支持
 echo ✅ 开机自动启动功能
 echo ✅ 中英文双语界面
+echo ✅ 🆕 分路预设功能 - 按分路自动配置ban/pick英雄
+echo ✅ 🆕 智能分路检测 - 自动检测游戏内分路并应用预设
+echo ✅ 🆕 可视化分路配置管理 - 完整的英雄池配置界面
 echo ✅ 智能弹窗抑制 (修复session识别，确保每个action只抑制一次)
 echo ✅ 稳定的session管理 (使用gameId等稳定标识符)
-echo ✅ 自动连接LOL客户端 (新功能!)
-echo ✅ 断线自动重连 (新功能!)
+echo ✅ 自动连接LOL客户端
+echo ✅ 断线自动重连
 echo ✅ 智能游戏状态检测
 echo ✅ 英雄ID映射修复
 echo ✅ 错误恢复机制

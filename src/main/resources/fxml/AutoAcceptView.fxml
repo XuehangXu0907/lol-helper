@@ -5,164 +5,276 @@
 <?import javafx.scene.image.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.Font?>
+<?import javafx.collections.FXCollections?>
+<?import java.lang.String?>
 
 <VBox xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lol.championselector.controller.AutoAcceptController" spacing="5.0">
    <padding>
-      <Insets bottom="8.0" left="10.0" right="10.0" top="8.0" />
+      <Insets bottom="10.0" left="15.0" right="15.0" top="10.0" />
    </padding>
    <children>
       <!-- 标题和状态栏 -->
-      <HBox alignment="CENTER_LEFT" spacing="8.0">
+      <HBox alignment="CENTER_LEFT" spacing="10.0" styleClass="header-bar">
+         <padding>
+            <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+         </padding>
          <children>
             <Label text="LOL助手" styleClass="title">
                <font>
-                  <Font name="Microsoft YaHei Bold" size="14.0" />
+                  <Font name="Microsoft YaHei Bold" size="18.0" />
                </font>
             </Label>
             <Region HBox.hgrow="ALWAYS" />
             <Label fx:id="connectionStatusLabel" text="未连接" styleClass="status-small" />
-            <Button fx:id="connectButton" onAction="#onConnectClicked" text="连接" />
+            <Button fx:id="connectButton" onAction="#onConnectClicked" text="连接" styleClass="primary-button" />
             <Button fx:id="disconnectButton" disable="true" onAction="#onDisconnectClicked" text="断开" />
          </children>
       </HBox>
       
-      <Separator />
-      
-      <!-- 自动功能区域 -->
-      <VBox spacing="5.0">
-         <children>
-            <HBox alignment="CENTER_LEFT" spacing="8.0">
-               <children>
-                  <CheckBox fx:id="autoAcceptCheckBox" onAction="#onAutoAcceptToggled" text="自动接受" />
-                  <Label text="间隔:" />
-                  <Spinner fx:id="checkIntervalSpinner" editable="true" prefWidth="80.0" />
-                  <Label text="ms" />
-               </children>
-            </HBox>
-            
-            <!-- 分路预设设置 -->
-            <VBox spacing="3.0">
-               <children>
-                  <CheckBox fx:id="usePositionPresetsCheckBox" onAction="#onUsePositionPresetsToggled" text="启用分路预设" />
-                  <HBox alignment="CENTER_LEFT" spacing="5.0" fx:id="positionPresetsContainer">
+      <!-- 主功能区域 - 使用TabPane -->
+      <TabPane fx:id="mainTabPane" VBox.vgrow="ALWAYS" tabClosingPolicy="UNAVAILABLE">
+         <tabs>
+            <!-- 自动功能页 -->
+            <Tab text="自动功能">
+               <content>
+                  <VBox spacing="10.0" styleClass="tab-content">
+                     <padding>
+                        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                     </padding>
                      <children>
-                        <Label text="当前分路:" />
-                        <ComboBox fx:id="positionComboBox" onAction="#onPositionSelectionChanged" prefWidth="100.0" promptText="选择分路" />
-                        <Region HBox.hgrow="ALWAYS" />
-                        <Button fx:id="editPositionConfigButton" onAction="#onEditPositionConfigClicked" text="编辑配置" />
+                        <!-- 自动接受卡片 -->
+                        <VBox spacing="8.0" styleClass="card">
+                           <padding>
+                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                           </padding>
+                           <children>
+                              <Label text="自动接受对局" styleClass="card-title">
+                                 <font>
+                                    <Font name="Microsoft YaHei Bold" size="14.0" />
+                                 </font>
+                              </Label>
+                              <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                 <children>
+                                    <CheckBox fx:id="autoAcceptCheckBox" onAction="#onAutoAcceptToggled" text="启用自动接受" />
+                                    <Region HBox.hgrow="ALWAYS" />
+                                    <Label text="检查间隔:" />
+                                    <Spinner fx:id="checkIntervalSpinner" editable="true" prefWidth="100.0" />
+                                    <Label text="ms" />
+                                 </children>
+                              </HBox>
+                           </children>
+                        </VBox>
+                        
+                        <!-- 分路预设卡片 -->
+                        <VBox spacing="8.0" styleClass="card">
+                           <padding>
+                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                           </padding>
+                           <children>
+                              <Label text="分路预设" styleClass="card-title">
+                                 <font>
+                                    <Font name="Microsoft YaHei Bold" size="14.0" />
+                                 </font>
+                              </Label>
+                              <CheckBox fx:id="usePositionPresetsCheckBox" onAction="#onUsePositionPresetsToggled" text="启用分路自动选择" />
+                              <HBox alignment="CENTER_LEFT" spacing="10.0" fx:id="positionPresetsContainer">
+                                 <children>
+                                    <Label text="当前分路:" />
+                                    <ComboBox fx:id="positionComboBox" onAction="#onPositionSelectionChanged" prefWidth="120.0" promptText="选择分路" />
+                                    <Label fx:id="currentPositionStatusLabel" text="未检测到分路" styleClass="hint-small" />
+                                    <Region HBox.hgrow="ALWAYS" />
+                                    <Button fx:id="editPositionConfigButton" onAction="#onEditPositionConfigClicked" text="编辑配置" styleClass="secondary-button" />
+                                 </children>
+                              </HBox>
+                              <!-- 分路预设预览区 -->
+                              <HBox fx:id="positionPreviewContainer" spacing="10.0" alignment="CENTER_LEFT">
+                                 <padding>
+                                    <Insets top="5.0" />
+                                 </padding>
+                              </HBox>
+                           </children>
+                        </VBox>
+                        
+                        <!-- Ban/Pick设置卡片 -->
+                        <VBox spacing="8.0" styleClass="card">
+                           <padding>
+                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                           </padding>
+                           <children>
+                              <Label text="Ban/Pick 设置" styleClass="card-title">
+                                 <font>
+                                    <Font name="Microsoft YaHei Bold" size="14.0" />
+                                 </font>
+                              </Label>
+                              
+                              <!-- Ban设置 -->
+                              <VBox spacing="5.0">
+                                 <children>
+                                    <CheckBox fx:id="autoBanCheckBox" onAction="#onAutoBanToggled" text="自动Ban英雄" />
+                                    <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                       <padding>
+                                          <Insets left="20.0" />
+                                       </padding>
+                                       <children>
+                                          <ImageView fx:id="banChampionAvatar" fitHeight="36.0" fitWidth="36.0" pickOnBounds="true" preserveRatio="true" />
+                                          <Label fx:id="banChampionLabel" text="未选择" wrapText="true" maxWidth="200.0" />
+                                          <Region HBox.hgrow="ALWAYS" />
+                                          <Button fx:id="selectBanChampionButton" onAction="#onSelectBanChampionClicked" text="选择英雄" />
+                                       </children>
+                                    </HBox>
+                                 </children>
+                              </VBox>
+                              
+                              <Separator />
+                              
+                              <!-- Pick设置 -->
+                              <VBox spacing="5.0">
+                                 <children>
+                                    <CheckBox fx:id="autoPickCheckBox" onAction="#onAutoPickToggled" text="自动Pick英雄" />
+                                    <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                       <padding>
+                                          <Insets left="20.0" />
+                                       </padding>
+                                       <children>
+                                          <ImageView fx:id="pickChampionAvatar" fitHeight="36.0" fitWidth="36.0" pickOnBounds="true" preserveRatio="true" />
+                                          <Label fx:id="pickChampionLabel" text="未选择" wrapText="true" maxWidth="200.0" />
+                                          <Region HBox.hgrow="ALWAYS" />
+                                          <Button fx:id="selectPickChampionButton" onAction="#onSelectPickChampionClicked" text="选择英雄" />
+                                       </children>
+                                    </HBox>
+                                 </children>
+                              </VBox>
+                           </children>
+                        </VBox>
                      </children>
-                  </HBox>
-                  <Label fx:id="currentPositionStatusLabel" text="未检测到分路位置" styleClass="hint-small" wrapText="true" maxWidth="Infinity" />
-               </children>
-            </VBox>
+                  </VBox>
+               </content>
+            </Tab>
             
-            <Separator fx:id="positionSeparator" />
+            <!-- 系统设置页 -->
+            <Tab text="系统设置">
+               <content>
+                  <VBox spacing="10.0" styleClass="tab-content">
+                     <padding>
+                        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                     </padding>
+                     <children>
+                        <!-- 常规设置卡片 -->
+                        <VBox spacing="8.0" styleClass="card">
+                           <padding>
+                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                           </padding>
+                           <children>
+                              <Label text="常规设置" styleClass="card-title">
+                                 <font>
+                                    <Font name="Microsoft YaHei Bold" size="14.0" />
+                                 </font>
+                              </Label>
+                              <CheckBox fx:id="systemTrayCheckBox" onAction="#onSystemTrayToggled" text="启用系统托盘" />
+                              <CheckBox fx:id="minimizeOnCloseCheckBox" onAction="#onMinimizeOnCloseToggled" text="关闭窗口时最小化到托盘" />
+                              <CheckBox fx:id="autoStartCheckBox" onAction="#onAutoStartToggled" text="开机自动启动" />
+                              <Label fx:id="autoStartStatusLabel" text="状态: 检查中" styleClass="hint-small" />
+                              <Label fx:id="trayStatusLabel" text="托盘状态: 检查中" styleClass="hint-small" />
+                           </children>
+                        </VBox>
+                        
+                        <!-- 连接设置卡片 -->
+                        <VBox spacing="8.0" styleClass="card">
+                           <padding>
+                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                           </padding>
+                           <children>
+                              <Label text="连接设置" styleClass="card-title">
+                                 <font>
+                                    <Font name="Microsoft YaHei Bold" size="14.0" />
+                                 </font>
+                              </Label>
+                              <CheckBox fx:id="autoConnectCheckBox" onAction="#onAutoConnectToggled" text="启动时自动连接到游戏客户端" />
+                              <CheckBox fx:id="autoReconnectCheckBox" onAction="#onAutoReconnectToggled" text="断线后自动重连" />
+                           </children>
+                        </VBox>
+                        
+                        <!-- 弹窗抑制卡片 -->
+                        <VBox spacing="8.0" styleClass="card">
+                           <padding>
+                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                           </padding>
+                           <children>
+                              <Label text="智能弹窗抑制" styleClass="card-title">
+                                 <font>
+                                    <Font name="Microsoft YaHei Bold" size="14.0" />
+                                 </font>
+                              </Label>
+                              <Label text="抑制以下阶段的弹窗提醒：" styleClass="hint-small" />
+                              <CheckBox fx:id="suppressReadyCheckCheckBox" onAction="#onSuppressReadyCheckToggled" text="准备检查阶段" />
+                              <CheckBox fx:id="suppressBanPhaseCheckBox" onAction="#onSuppressBanPhaseToggled" text="Ban英雄阶段" />
+                              <CheckBox fx:id="suppressPickPhaseCheckBox" onAction="#onSuppressPickPhaseToggled" text="Pick英雄阶段" />
+                              <Label fx:id="suppressionStatusLabel" text="弹窗抑制未启用" styleClass="hint-small" wrapText="true" />
+                           </children>
+                        </VBox>
+                        
+                        <!-- 语言设置 -->
+                        <HBox alignment="CENTER_RIGHT">
+                           <children>
+                              <MenuButton fx:id="languageMenuButton" text="语言" styleClass="secondary-button">
+                                 <items>
+                                    <MenuItem fx:id="chineseMenuItem" text="中文" onAction="#onChineseSelected" />
+                                    <MenuItem fx:id="englishMenuItem" text="English" onAction="#onEnglishSelected" />
+                                 </items>
+                              </MenuButton>
+                           </children>
+                        </HBox>
+                     </children>
+                  </VBox>
+               </content>
+            </Tab>
             
-            <CheckBox fx:id="autoBanCheckBox" onAction="#onAutoBanToggled" text="自动Ban" />
-            <HBox alignment="CENTER_LEFT" spacing="5.0">
-               <children>
-                  <ImageView fx:id="banChampionAvatar" fitHeight="24.0" fitWidth="24.0" pickOnBounds="true" preserveRatio="true" />
-                  <Label fx:id="banChampionLabel" text="艾克 (Ekko)" wrapText="true" maxWidth="Infinity" HBox.hgrow="SOMETIMES" />
-                  <Region HBox.hgrow="ALWAYS" />
-                  <Button fx:id="selectBanChampionButton" onAction="#onSelectBanChampionClicked" text="选择" />
-               </children>
-            </HBox>
-            
-            <CheckBox fx:id="autoPickCheckBox" onAction="#onAutoPickToggled" text="自动Pick" />
-            <HBox alignment="CENTER_LEFT" spacing="5.0">
-               <children>
-                  <ImageView fx:id="pickChampionAvatar" fitHeight="24.0" fitWidth="24.0" pickOnBounds="true" preserveRatio="true" />
-                  <Label fx:id="pickChampionLabel" text="金克丝 (Jinx)" wrapText="true" maxWidth="Infinity" HBox.hgrow="SOMETIMES" />
-                  <Region HBox.hgrow="ALWAYS" />
-                  <Button fx:id="selectPickChampionButton" onAction="#onSelectPickChampionClicked" text="选择" />
-               </children>
-            </HBox>
-         </children>
-      </VBox>
-      
-      <Separator />
-      
-      <!-- 设置区域 -->
-      <VBox spacing="5.0">
-         <children>
-            <Label text="设置" styleClass="section-title">
-               <font>
-                  <Font name="Microsoft YaHei Bold" size="12.0" />
-               </font>
-            </Label>
-            <!-- 系统设置选项 -->
-            <VBox spacing="3.0">
-               <children>
-                  <HBox spacing="8.0" alignment="CENTER_LEFT">
+            <!-- 高级设置页 -->
+            <Tab text="高级">
+               <content>
+                  <VBox spacing="10.0" styleClass="tab-content">
+                     <padding>
+                        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                     </padding>
                      <children>
-                        <CheckBox fx:id="systemTrayCheckBox" onAction="#onSystemTrayToggled" text="托盘" />
-                        <CheckBox fx:id="minimizeOnCloseCheckBox" onAction="#onMinimizeOnCloseToggled" text="关闭时最小化" />
-                        <CheckBox fx:id="autoStartCheckBox" onAction="#onAutoStartToggled" text="开机启动" />
+                        <!-- 调试设置卡片 -->
+                        <VBox spacing="8.0" styleClass="card">
+                           <padding>
+                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                           </padding>
+                           <children>
+                              <Label text="调试设置" styleClass="card-title">
+                                 <font>
+                                    <Font name="Microsoft YaHei Bold" size="14.0" />
+                                 </font>
+                              </Label>
+                              <Label text="日志级别：" />
+                              <ComboBox fx:id="logLevelComboBox" prefWidth="150.0">
+                                 <items>
+                                    <FXCollections fx:factory="observableArrayList">
+                                       <String fx:value="INFO" />
+                                       <String fx:value="DEBUG" />
+                                       <String fx:value="WARN" />
+                                       <String fx:value="ERROR" />
+                                    </FXCollections>
+                                 </items>
+                              </ComboBox>
+                           </children>
+                        </VBox>
+                        
+                        <Region VBox.vgrow="ALWAYS" />
                      </children>
-                  </HBox>
-                  
-                  <!-- 自动连接设置 -->
-                  <Label text="连接设置" styleClass="section-subtitle">
-                     <font>
-                        <Font name="Microsoft YaHei" size="10.0" />
-                     </font>
-                  </Label>
-                  <HBox spacing="8.0" alignment="CENTER_LEFT">
-                     <children>
-                        <CheckBox fx:id="autoConnectCheckBox" onAction="#onAutoConnectToggled" text="自动连接" />
-                        <CheckBox fx:id="autoReconnectCheckBox" onAction="#onAutoReconnectToggled" text="断线重连" />
-                     </children>
-                  </HBox>
-                  
-                  <!-- 弹窗抑制设置 -->
-                  <Label text="弹窗抑制" styleClass="section-subtitle">
-                     <font>
-                        <Font name="Microsoft YaHei" size="10.0" />
-                     </font>
-                  </Label>
-                  <HBox spacing="8.0" alignment="CENTER_LEFT">
-                     <children>
-                        <CheckBox fx:id="suppressReadyCheckCheckBox" onAction="#onSuppressReadyCheckToggled" text="准备检查" />
-                        <CheckBox fx:id="suppressBanPhaseCheckBox" onAction="#onSuppressBanPhaseToggled" text="Ban阶段" />
-                        <CheckBox fx:id="suppressPickPhaseCheckBox" onAction="#onSuppressPickPhaseToggled" text="Pick阶段" />
-                     </children>
-                  </HBox>
-                  <Label fx:id="suppressionStatusLabel" text="弹窗抑制未启用" styleClass="hint-small" wrapText="true" maxWidth="Infinity" />
-               </children>
-            </VBox>
-            
-            <VBox spacing="3.0">
-               <children>
-                  <HBox spacing="5.0" alignment="CENTER_LEFT">
-                     <children>
-                        <Label fx:id="autoStartStatusLabel" text="状态: 检查中" styleClass="hint-small" wrapText="true" maxWidth="Infinity" HBox.hgrow="SOMETIMES" />
-                        <Region HBox.hgrow="ALWAYS" />
-                        <MenuButton fx:id="languageMenuButton" text="语言">
-                           <items>
-                              <MenuItem fx:id="chineseMenuItem" text="中文" onAction="#onChineseSelected" />
-                              <MenuItem fx:id="englishMenuItem" text="English" onAction="#onEnglishSelected" />
-                           </items>
-                        </MenuButton>
-                     </children>
-                  </HBox>
-                  <Label fx:id="trayStatusLabel" text="托盘状态: 检查中" styleClass="hint-small" wrapText="true" maxWidth="Infinity" />
-               </children>
-            </VBox>
-         </children>
-      </VBox>
+                  </VBox>
+               </content>
+            </Tab>
+         </tabs>
+      </TabPane>
       
-      <Separator />
-      
-      <!-- 状态显示区域 -->
-      <VBox spacing="5.0" VBox.vgrow="ALWAYS">
-         <children>
-            <Label text="状态" styleClass="section-title">
-               <font>
-                  <Font name="Microsoft YaHei Bold" size="12.0" />
-               </font>
-            </Label>
-            <TextArea fx:id="statusTextArea" editable="false" prefHeight="60.0" promptText="等待状态更新" VBox.vgrow="ALWAYS" wrapText="true" maxWidth="Infinity" />
-         </children>
-      </VBox>
+      <!-- 状态显示区域（可折叠） -->
+      <TitledPane text="状态信息" expanded="false" styleClass="status-pane">
+         <content>
+            <TextArea fx:id="statusTextArea" editable="false" prefHeight="100.0" promptText="等待状态更新" wrapText="true" />
+         </content>
+      </TitledPane>
    </children>
 </VBox>

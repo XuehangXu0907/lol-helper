@@ -22,6 +22,8 @@ import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+import java.util.List;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import org.slf4j.Logger;
@@ -89,6 +91,11 @@ public class AutoAcceptController implements Initializable {
     @FXML private HBox positionPresetsContainer;
     @FXML private Button editPositionConfigButton;
     @FXML private Label currentPositionStatusLabel;
+    @FXML private HBox positionPreviewContainer;
+    
+    // UI Layout elements
+    @FXML private TabPane mainTabPane;
+    @FXML private ComboBox<String> logLevelComboBox;
     
     private LCUMonitor lcuMonitor;
     private AutoAcceptConfig config;
@@ -1302,6 +1309,10 @@ public class AutoAcceptController implements Initializable {
             String selectedPosition = positionComboBox.getValue();
             if (selectedPosition != null && config.getChampionSelect().isUsePositionBasedSelection()) {
                 applyPositionPresets(selectedPosition);
+            } else if (selectedPosition != null) {
+                // 仅更新预览，不应用配置
+                AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(selectedPosition);
+                updatePositionPreview(positionConfig);
             }
         }
     }
@@ -1408,8 +1419,102 @@ public class AutoAcceptController implements Initializable {
             saveConfiguration();
             appendStatus("已应用" + translatePosition(position) + "预设配置");
             logger.info("Applied position presets for: {}", position);
+            
+            // 更新分路预设预览
+            updatePositionPreview(positionConfig);
         } else {
             logger.debug("No position config found for: {}", position);
+            // 清空预览
+            updatePositionPreview(null);
         }
+    }
+    
+    /**
+     * 更新分路预设预览显示
+     */
+    private void updatePositionPreview(AutoAcceptConfig.PositionConfig positionConfig) {
+        if (positionPreviewContainer == null) {
+            return;
+        }
+        
+        Platform.runLater(() -> {
+            positionPreviewContainer.getChildren().clear();
+            
+            if (positionConfig == null) {
+                Label noPresetLabel = new Label("当前分路暂无预设");
+                noPresetLabel.setStyle("-fx-text-fill: #999999;");
+                positionPreviewContainer.getChildren().add(noPresetLabel);
+                return;
+            }
+            
+            // Ban英雄预览
+            VBox banPreview = new VBox(3);
+            banPreview.setAlignment(javafx.geometry.Pos.CENTER);
+            Label banLabel = new Label("Ban");
+            banLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #666666;");
+            
+            HBox banChampions = new HBox(5);
+            banChampions.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            List<AutoAcceptConfig.ChampionInfo> banList = positionConfig.getBanChampions();
+            if (banList != null && !banList.isEmpty()) {
+                for (int i = 0; i < Math.min(3, banList.size()); i++) {
+                    ImageView avatar = new ImageView();
+                    avatar.setFitWidth(32);
+                    avatar.setFitHeight(32);
+                    avatar.setPreserveRatio(true);
+                    loadChampionAvatar(avatar, banList.get(i).getKey());
+                    banChampions.getChildren().add(avatar);
+                }
+                if (banList.size() > 3) {
+                    Label moreLabel = new Label("+" + (banList.size() - 3));
+                    moreLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #999999;");
+                    banChampions.getChildren().add(moreLabel);
+                }
+            } else {
+                Label noBanLabel = new Label("无");
+                noBanLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #999999;");
+                banChampions.getChildren().add(noBanLabel);
+            }
+            
+            banPreview.getChildren().addAll(banLabel, banChampions);
+            
+            // Pick英雄预览
+            VBox pickPreview = new VBox(3);
+            pickPreview.setAlignment(javafx.geometry.Pos.CENTER);
+            Label pickLabel = new Label("Pick");
+            pickLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #666666;");
+            
+            HBox pickChampions = new HBox(5);
+            pickChampions.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            List<AutoAcceptConfig.ChampionInfo> pickList = positionConfig.getPickChampions();
+            if (pickList != null && !pickList.isEmpty()) {
+                for (int i = 0; i < Math.min(3, pickList.size()); i++) {
+                    ImageView avatar = new ImageView();
+                    avatar.setFitWidth(32);
+                    avatar.setFitHeight(32);
+                    avatar.setPreserveRatio(true);
+                    loadChampionAvatar(avatar, pickList.get(i).getKey());
+                    pickChampions.getChildren().add(avatar);
+                }
+                if (pickList.size() > 3) {
+                    Label moreLabel = new Label("+" + (pickList.size() - 3));
+                    moreLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #999999;");
+                    pickChampions.getChildren().add(moreLabel);
+                }
+            } else {
+                Label noPickLabel = new Label("无");
+                noPickLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #999999;");
+                pickChampions.getChildren().add(noPickLabel);
+            }
+            
+            pickPreview.getChildren().addAll(pickLabel, pickChampions);
+            
+            // 添加分隔线
+            javafx.scene.control.Separator separator = new javafx.scene.control.Separator();
+            separator.setOrientation(javafx.geometry.Orientation.VERTICAL);
+            separator.setPrefHeight(40);
+            
+            positionPreviewContainer.getChildren().addAll(banPreview, separator, pickPreview);
+        });
     }
 }

@@ -79,7 +79,7 @@ public class ChampionSelectorApplication extends Application {
             }
             fxmlLoader.setLocation(fxmlUrl);
             
-            Scene scene = new Scene(fxmlLoader.load(), 300, 400);
+            Scene scene = new Scene(fxmlLoader.load(), 500, 650);
             
             // 获取控制器引用
             controller = fxmlLoader.getController();
@@ -141,8 +141,8 @@ public class ChampionSelectorApplication extends Application {
         }
         
         // 设置最小窗口大小
-        primaryStage.setMinWidth(280);
-        primaryStage.setMinHeight(350);
+        primaryStage.setMinWidth(450);
+        primaryStage.setMinHeight(600);
         
         // 设置窗口关闭事件
         primaryStage.setOnCloseRequest(event -> {
