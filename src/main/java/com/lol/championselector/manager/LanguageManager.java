@@ -15,7 +15,7 @@ public class LanguageManager {
     private static final Logger logger = LoggerFactory.getLogger(LanguageManager.class);
     private static final String DEFAULT_LANGUAGE_FILE = "language_preference.properties";
     
-    private static LanguageManager instance;
+    private static volatile LanguageManager instance;
     private ResourceBundle currentBundle;
     private final ObjectProperty<Locale> currentLocale = new SimpleObjectProperty<>();
     private Language currentLanguageMode = Language.CHINESE; // 跟踪当前语言模式
@@ -60,14 +60,30 @@ public class LanguageManager {
     
     public static LanguageManager getInstance() {
         if (instance == null) {
-            instance = new LanguageManager();
+            synchronized (LanguageManager.class) {
+                if (instance == null) {
+                    try {
+                        instance = new LanguageManager();
+                        logger.debug("LanguageManager instance created successfully");
+                    } catch (Exception e) {
+                        logger.error("Failed to create LanguageManager instance", e);
+                        throw new RuntimeException("LanguageManager initialization failed", e);
+                    }
+                }
+            }
         }
         return instance;
     }
     
-    public void setLanguage(Locale locale) {
+    public synchronized void setLanguage(Locale locale) {
+        if (locale == null) {
+            logger.warn("Attempted to set null locale, ignoring");
+            return;
+        }
+        
         try {
-            currentBundle = ResourceBundle.getBundle("messages", locale, new UTF8Control());
+            ResourceBundle newBundle = ResourceBundle.getBundle("messages", locale, new UTF8Control());
+            currentBundle = newBundle;
             currentLocale.set(locale);
             saveLanguagePreference(locale);
             logger.info("Language changed to: {}", locale);
@@ -75,16 +91,23 @@ public class LanguageManager {
             logger.error("Failed to load language bundle for locale: {}", locale, e);
             // Fallback to Chinese
             try {
-                currentBundle = ResourceBundle.getBundle("messages", Locale.CHINA, new UTF8Control());
+                ResourceBundle fallbackBundle = ResourceBundle.getBundle("messages", Locale.CHINA, new UTF8Control());
+                currentBundle = fallbackBundle;
                 currentLocale.set(Locale.CHINA);
+                logger.info("Loaded fallback language bundle (Chinese)");
             } catch (Exception ex) {
                 logger.error("Failed to load fallback language bundle", ex);
+                // Keep existing bundle if available
             }
         }
     }
     
-    public void setLanguage(Language language) {
-        setLanguage(language.getLocale());
+    public synchronized void setLanguage(Language language) {
+        if (language != null) {
+            setLanguage(language.getLocale());
+        } else {
+            logger.warn("Attempted to set null language, ignoring");
+        }
     }
     
     /**

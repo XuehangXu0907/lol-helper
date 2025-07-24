@@ -9,7 +9,10 @@
     -fx-focus-color: #C89B3C;
     -fx-faint-focus-color: #C89B3C22;
     -fx-text-fill: #CDBE91;
-    -fx-font-family: "Microsoft YaHei", Arial, sans-serif;
+    /* Enhanced font configuration with proper fallbacks */
+    -fx-font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "Arial Unicode MS", "Helvetica Neue", Arial, sans-serif;
+    /* Base font size - ensures consistent sizing across environments */
+    -fx-font-size: 16px;
 }
 
 /* Main container */

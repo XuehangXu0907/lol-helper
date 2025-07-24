@@ -18,6 +18,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
@@ -28,12 +30,16 @@ public class SkillsManager {
     private static final String SKILLS_API_TEMPLATE = 
         "https://ddragon.leagueoflegends.com/cdn/%s/data/zh_CN/champion/%s.json";
     
-    private static final Map<String, String> KEY_CORRECTIONS = Map.of(
-        "Wukong", "MonkeyKing",
-        "RekSai", "RekSai",
-        "KaiSa", "Kaisa",
-        "KhaZix", "Khazix"
-    );
+    private static final Map<String, String> KEY_CORRECTIONS;
+    
+    static {
+        Map<String, String> corrections = new HashMap<>();
+        corrections.put("Wukong", "MonkeyKing");
+        corrections.put("RekSai", "RekSai");
+        corrections.put("KaiSa", "Kaisa");
+        corrections.put("KhaZix", "Khazix");
+        KEY_CORRECTIONS = Collections.unmodifiableMap(corrections);
+    }
     
     private final Cache<String, ChampionSkills> skillsCache;
     private final OkHttpClient httpClient;

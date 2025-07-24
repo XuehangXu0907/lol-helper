@@ -1,32 +1,18 @@
 @echo off
 chcp 65001 >nul
-title 测试构建脚本改进 v2.2.2
+title 测试构建脚本改进
 
 echo ================================================
-echo      测试构建脚本改进功能 v2.2.2
+echo      测试构建脚本改进功能
 echo ================================================
 echo.
 
 cd /d "%~dp0"
 
 echo [1] 测试版本号检测...
-for /f "tokens=2 delims=<>" %%i in ('findstr /n "<version>" pom.xml ^| findstr "10:"') do (
-    set APP_VERSION=%%i
-    goto :version_found
-)
-
-REM 备用方法
-if "%APP_VERSION%"=="" (
-    for /f "tokens=2 delims=<>" %%i in ('findstr "<version>2\." pom.xml') do (
-        set APP_VERSION=%%i
-        goto :version_found
-    )
-)
-
-REM 最后备用
-if "%APP_VERSION%"=="" (
-    set APP_VERSION=2.2.2
-)
+REM 从pom.xml读取版本号（与build-installer.bat保持一致）
+REM 使用PowerShell更精确地读取XML
+for /f "delims=" %%i in ('powershell -Command "([xml](Get-Content pom.xml)).project.version"') do set APP_VERSION=%%i
 
 :version_found
 
@@ -147,16 +133,16 @@ if exist "src\main\java\com\lol\championselector\controller\AutoAcceptController
 
 echo.
 echo ================================================
-echo              测试完成 v2.2.2
+echo              测试完成 v%APP_VERSION%
 echo ================================================
 echo.
 echo 所有检测项目已完成。如果有红色的❌标记，
 echo 请解决相应问题后再运行完整的构建脚本。
 echo.
-echo 🆕 v2.2.2 新增验证项目:
-echo   - 翻译文件完整性验证
-echo   - Tab页翻译键检查
-echo   - 控制器翻译支持验证
-echo   - 界面翻译功能完整性检查
+echo 🆕 v%APP_VERSION% 验证项目:
+echo   - 版本号自动检测
+echo   - 构建环境完整性
+echo   - 翻译文件验证
+echo   - 依赖项检查
 echo.
 pause

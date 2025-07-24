@@ -3,6 +3,7 @@ package com.lol.championselector;
 import com.lol.championselector.config.ChampionSelectorConfig;
 import com.lol.championselector.controller.AutoAcceptController;
 import com.lol.championselector.manager.SystemTrayManager;
+import com.lol.championselector.util.SafePlatformUtil;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
@@ -240,7 +241,7 @@ public class ChampionSelectorApplication extends Application {
     }
     
     private void showErrorAndExit(String title, String message) {
-        Platform.runLater(() -> {
+        boolean success = SafePlatformUtil.runLater(() -> {
             try {
                 javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
                     javafx.scene.control.Alert.AlertType.ERROR);
@@ -255,6 +256,13 @@ public class ChampionSelectorApplication extends Application {
                 System.exit(1);
             }
         });
+        
+        if (!success) {
+            // Fallback to console output if JavaFX is not available
+            System.err.println("Application Error: " + title);
+            System.err.println(message);
+            System.exit(1);
+        }
     }
     
     // 提供配置访问方法

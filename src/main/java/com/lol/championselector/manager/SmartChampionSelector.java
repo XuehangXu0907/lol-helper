@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.HashSet;
 
 /**
  * 智能英雄选择策略 - 基于draft pick分析动态调整英雄选择
@@ -52,11 +53,26 @@ public class SmartChampionSelector {
     static {
         // 这里可以根据实际需要扩展英雄分类
         // 示例：一些常见英雄的角色分类
-        ROLE_CHAMPIONS.put("ADC", Set.of(22, 18, 51, 119, 96)); // Ashe, Tristana, Caitlyn, Draven, Kog'Maw
-        ROLE_CHAMPIONS.put("Support", Set.of(12, 40, 89, 25, 111)); // Alistar, Janna, Leona, Morgana, Nautilus
-        ROLE_CHAMPIONS.put("Tank", Set.of(54, 57, 78, 14, 113)); // Malphite, Maokai, Poppy, Sion, Sejuani
-        ROLE_CHAMPIONS.put("AP_Carry", Set.of(1, 7, 99, 69, 134)); // Annie, LeBlanc, Lux, Cassiopeia, Syndra
-        ROLE_CHAMPIONS.put("Assassin", Set.of(238, 91, 121, 107, 245)); // Zed, Talon, Kha'Zix, Rengar, Ekko
+        
+        Set<Integer> adcChampions = new HashSet<>();
+        Collections.addAll(adcChampions, 22, 18, 51, 119, 96); // Ashe, Tristana, Caitlyn, Draven, Kog'Maw
+        ROLE_CHAMPIONS.put("ADC", adcChampions);
+        
+        Set<Integer> supportChampions = new HashSet<>();
+        Collections.addAll(supportChampions, 12, 40, 89, 25, 111); // Alistar, Janna, Leona, Morgana, Nautilus
+        ROLE_CHAMPIONS.put("Support", supportChampions);
+        
+        Set<Integer> tankChampions = new HashSet<>();
+        Collections.addAll(tankChampions, 54, 57, 78, 14, 113); // Malphite, Maokai, Poppy, Sion, Sejuani
+        ROLE_CHAMPIONS.put("Tank", tankChampions);
+        
+        Set<Integer> apCarryChampions = new HashSet<>();
+        Collections.addAll(apCarryChampions, 1, 7, 99, 69, 134); // Annie, LeBlanc, Lux, Cassiopeia, Syndra
+        ROLE_CHAMPIONS.put("AP_Carry", apCarryChampions);
+        
+        Set<Integer> assassinChampions = new HashSet<>();
+        Collections.addAll(assassinChampions, 238, 91, 121, 107, 245); // Zed, Talon, Kha'Zix, Rengar, Ekko
+        ROLE_CHAMPIONS.put("Assassin", assassinChampions);
     }
     
     /**

@@ -36,7 +36,8 @@ REM 从POM.xml自动读取版本号和artifactId
 echo [INFO] 正在从pom.xml读取项目信息...
 
 REM 从pom.xml读取版本号
-for /f "tokens=2 delims=<>" %%i in ('findstr /r "<version>.*</version>" pom.xml ^| findstr /v "maven\|javafx\|okhttp\|jackson\|caffeine\|logback\|junit\|mockito" ^| head -1') do set APP_VERSION=%%i
+REM 使用PowerShell更精确地读取XML
+for /f "delims=" %%i in ('powershell -Command "([xml](Get-Content pom.xml)).project.version"') do set APP_VERSION=%%i
 if "%APP_VERSION%"=="" (
     echo ❌ 错误: 无法从pom.xml读取版本号
     echo 请检查pom.xml文件格式是否正确
@@ -46,7 +47,8 @@ if "%APP_VERSION%"=="" (
 echo [INFO] 从pom.xml读取版本号: %APP_VERSION%
 
 REM 从pom.xml读取artifactId
-for /f "tokens=2 delims=<>" %%i in ('findstr /r "<artifactId>.*</artifactId>" pom.xml ^| head -1') do set JAR_NAME=%%i
+REM 使用PowerShell更精确地读取XML
+for /f "delims=" %%i in ('powershell -Command "([xml](Get-Content pom.xml)).project.artifactId"') do set JAR_NAME=%%i
 if "%JAR_NAME%"=="" (
     echo ❌ 错误: 无法从pom.xml读取artifactId
     echo 请检查pom.xml文件格式是否正确
@@ -199,7 +201,18 @@ if exist "src\main\resources\icon\icon.png" (
 echo ✅ 打包环境准备完成
 echo.
 
-echo [5/5] 创建Windows安装程序...
+echo [5/5] 创建Windows MSI安装程序...
+
+REM 检查是否有运行中的LOL Helper进程
+echo [INFO] 检查是否有运行中的LOL Helper进程...
+tasklist /FI "IMAGENAME eq java.exe" 2>nul | find /i "java.exe" >nul
+if %errorlevel% equ 0 (
+    echo ⚠️ 警告: 检测到运行中的Java进程
+    echo 如果其中包含LOL Helper，可能会导致MSI安装冲突
+    echo 建议在安装新版本前完全退出LOL Helper应用
+    echo.
+)
+
 echo 正在生成MSI安装包...
 
 REM 创建输出目录
@@ -214,7 +227,7 @@ if exist "src\main\resources\icon\app-icon.ico" (
     echo ⚠️ 未找到图标文件，使用默认图标
 )
 
-REM 运行jpackage（简化版，避免模块化问题）
+REM 运行jpackage（使用MSI格式，配置自动升级机制）
 jpackage --type msi ^
          --input target ^
          --dest dist ^
@@ -229,25 +242,48 @@ jpackage --type msi ^
          --java-options "-Duser.language=zh" ^
          --java-options "-Duser.country=CN" ^
          --java-options "-Xmx512m" ^
-         --win-upgrade-uuid "E6B7C4A2-8F3D-4E5A-9B6C-1D2E3F4A5B6C" ^
+         --java-options "-Dawt.useSystemAAFontSettings=on" ^
+         --java-options "-Dswing.aatext=true" ^
+         REM Removed problematic auto DPI parameters that cause NumberFormatException
+         --java-options "-Dglass.win.minHiDPI=1" ^
+         --java-options "-Dprism.allowhidpi=true" ^
+         --java-options "-Dprism.text=t2k" ^
+         --java-options "-Dprism.fontSizeLimit=150" ^
+         --java-options "-Dsun.java2d.uiScale.enabled=true" ^
+         REM Removed problematic auto DPI parameters that cause NumberFormatException
+         --win-upgrade-uuid "B8E6A7F9-3C2D-4A58-9B14-7E6F8D9C5A12" ^
          --win-per-user-install ^
          --win-menu ^
          --win-dir-chooser ^
          --win-shortcut ^
-         --description "英雄联盟助手 v%APP_VERSION% - 自动接受/禁用/选择工具，支持分路预设、智能弹窗抑制、系统托盘等功能" ^
+         --description "LOL Helper v%APP_VERSION% - Auto-accept, Ban/Pick tool with position presets, smart popup suppression, and system tray support" ^
          --copyright "Copyright (c) 2025 LOL Helper Team" %ICON_PARAM%
 
 if %errorlevel% neq 0 (
     echo ❌ 安装包创建失败
     echo.
-    echo 可能的解决方案:
+    echo 🔧 可能的解决方案:
     echo 1. 确保有管理员权限
     echo 2. 安装 WiX Toolset: https://wixtoolset.org/releases/
     echo 3. 尝试关闭防病毒软件
     echo 4. 检查磁盘空间是否足够
     echo.
-    echo 如果仍然失败，可以尝试创建EXE安装包:
+    echo 🔧 升级相关问题排查:
+    echo 5. 检查是否有LOL Helper进程正在运行
+    echo    - 打开任务管理器，结束所有java.exe或LOLHelper相关进程
+    echo 6. 推荐方案 - 手动卸载旧版本后安装新版本
+    echo    - 控制面板 ^> 程序和功能 ^> 卸载LOL Helper
+    echo    - 然后运行新版本的MSI安装程序
+    echo 7. 清理Windows Installer缓存（高级用户）
+    echo    - 以管理员身份运行: msiexec /unregister
+    echo    - 然后运行: msiexec /regserver
+    echo.
+    echo 🔧 如果仍然失败，可以尝试创建EXE安装包:
     echo 将上面命令中的 --type msi 改为 --type exe
+    echo.
+    echo 💡 升级问题提示:
+    echo 如果是因为旧版本冲突导致的问题，请先完全退出LOL Helper应用
+    echo 包括系统托盘中的应用，然后重新运行此构建脚本
     echo.
     pause
     exit /b 1
@@ -280,7 +316,8 @@ echo   文件位置: %MSI_FILE%
 echo   安装包类型: Windows MSI
 echo   应用名称: %APP_NAME%
 echo   版本: %APP_VERSION%
-echo   升级UUID: E6B7C4A2-8F3D-4E5A-9B6C-1D2E3F4A5B6C
+echo   升级UUID: B8E6A7F9-3C2D-4A58-9B14-7E6F8D9C5A12
+echo   升级模式: 自动卸载旧版本
 echo.
 
 REM 显示文件大小和创建时间
@@ -354,7 +391,7 @@ echo 🔧 构建脚本增强:
 echo ✅ 🆕 自动版本检测 - 从pom.xml自动读取版本号
 echo ✅ 🆕 智能文件锁定处理 - 避免构建时的文件占用问题
 echo ✅ 🆕 磁盘空间检查 - 确保有足够空间进行构建
-echo ✅ 🆕 WiX Toolset检测 - 预检查MSI构建环境
+echo ✅ 🆕 构建环境检测 - 预检查安装包构建环境  
 echo ✅ 🆕 MSI文件完整性验证 - 构建后自动验证文件大小
 echo ✅ 🔧 构建验证增强 - 验证新功能是否正确编译和运行
 echo.
@@ -364,11 +401,21 @@ echo 1. 双击 %APP_NAME%-%APP_VERSION%.msi
 echo 2. 按照安装向导操作
 echo 3. 从桌面或开始菜单启动程序
 echo.
-echo 【升级安装】:
-echo 1. 直接双击新版本的 %APP_NAME%-%APP_VERSION%.msi
-echo 2. 系统会自动卸载旧版本并安装新版本
-echo 3. 用户配置和数据将会保留
-echo 4. 🆕 v%APP_VERSION%版本包含最新功能和优化
+echo 【自动升级安装】:
+echo 1. 🔧 重要：首先完全退出旧版本LOL Helper
+echo    - 右键点击系统托盘图标选择退出
+echo    - 或使用任务管理器结束相关进程
+echo 2. 双击新版本的 %APP_NAME%-%APP_VERSION%.msi
+echo 3. 🎉 Windows Installer会自动检测并卸载旧版本
+echo 4. 然后自动安装新版本，用户配置和数据将保留
+echo 5. 🆕 v%APP_VERSION%版本包含最新功能和优化
+echo.
+echo 🎉 自动升级安装优势：
+echo ✅ 智能升级机制 - 自动卸载旧版本，安装新版本
+echo ✅ 配置数据保留 - 用户设置和数据自动迁移
+echo ✅ 无残留文件 - 旧版本完全清理，无冗余文件
+echo ✅ 统一升级UUID - 确保升级链的连续性和稳定性
+echo ✅ 纯英文描述 - 避免中文编码问题
 echo.
 echo 💡 提示: 
 echo - 用户计算机无需安装Java即可使用

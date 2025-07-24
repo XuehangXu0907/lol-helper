@@ -1,15 +1,21 @@
 package com.lol.championselector.config;
 
 import java.util.Map;
+import java.util.HashMap;
+import java.util.Collections;
 
 public class ChampionVersionMapping {
-    private static final Map<String, String> VERSION_MAP = Map.of(
-        "Mel", "15.2.1",
-        "Ambessa", "14.24.1", 
-        "Smolder", "14.24.1",
-        "Aurora", "14.24.1",
-        "Hwei", "14.1.1"
-    );
+    private static final Map<String, String> VERSION_MAP;
+    
+    static {
+        Map<String, String> map = new HashMap<>();
+        map.put("Mel", "15.2.1");
+        map.put("Ambessa", "14.24.1");
+        map.put("Smolder", "14.24.1");
+        map.put("Aurora", "14.24.1");
+        map.put("Hwei", "14.1.1");
+        VERSION_MAP = Collections.unmodifiableMap(map);
+    }
     
     private static final String DEFAULT_VERSION = "14.24.1";
     

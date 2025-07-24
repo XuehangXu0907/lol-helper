@@ -2,7 +2,8 @@
 
 /* === 基础样式重置 === */
 .root {
-    -fx-font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+    /* Enhanced font configuration with proper fallbacks */
+    -fx-font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Segoe UI", "Arial Unicode MS", "Helvetica Neue", Arial, sans-serif;
     -fx-font-size: 16px;
     -fx-background-color: #fafafa;
     -fx-text-fill: #212121;
