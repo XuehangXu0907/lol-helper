@@ -322,19 +322,77 @@ public class LCUMonitor {
                 Set<Integer> bannedChampions = new HashSet<>();
                 
                 if (session == null || session.isMissingNode()) {
+                    logger.debug("getBannedChampions: session is null or missing");
                     return bannedChampions;
                 }
                 
                 JsonNode bans = session.path("bans");
+                logger.debug("getBannedChampions: bans node = {}", bans);
+                
                 if (bans.isArray()) {
+                    // 旧格式：直接数组形式
+                    logger.debug("getBannedChampions: processing array format with {} ban entries", bans.size());
                     for (JsonNode ban : bans) {
                         int championId = ban.path("championId").asInt(0);
+                        logger.debug("getBannedChampions: ban entry = {}, championId = {}", ban, championId);
                         if (championId != 0) {
                             bannedChampions.add(championId);
                         }
                     }
+                } else if (bans.isObject()) {
+                    // 新格式：对象形式 {"myTeamBans":[104,432,234],"theirTeamBans":[]}
+                    logger.debug("getBannedChampions: processing object format");
+                    
+                    // 处理我方队伍的ban - 直接是championId数组
+                    JsonNode myTeamBans = bans.path("myTeamBans");
+                    if (myTeamBans.isArray()) {
+                        logger.debug("getBannedChampions: processing {} myTeamBans", myTeamBans.size());
+                        for (JsonNode ban : myTeamBans) {
+                            if (ban.isInt()) {
+                                // 直接是championId
+                                int championId = ban.asInt();
+                                logger.debug("getBannedChampions: myTeam ban championId = {}", championId);
+                                if (championId != 0) {
+                                    bannedChampions.add(championId);
+                                }
+                            } else if (ban.isObject()) {
+                                // 对象格式
+                                int championId = ban.path("championId").asInt(0);
+                                logger.debug("getBannedChampions: myTeam ban object = {}, championId = {}", ban, championId);
+                                if (championId != 0) {
+                                    bannedChampions.add(championId);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 处理敌方队伍的ban - 直接是championId数组
+                    JsonNode theirTeamBans = bans.path("theirTeamBans");
+                    if (theirTeamBans.isArray()) {
+                        logger.debug("getBannedChampions: processing {} theirTeamBans", theirTeamBans.size());
+                        for (JsonNode ban : theirTeamBans) {
+                            if (ban.isInt()) {
+                                // 直接是championId
+                                int championId = ban.asInt();
+                                logger.debug("getBannedChampions: theirTeam ban championId = {}", championId);
+                                if (championId != 0) {
+                                    bannedChampions.add(championId);
+                                }
+                            } else if (ban.isObject()) {
+                                // 对象格式
+                                int championId = ban.path("championId").asInt(0);
+                                logger.debug("getBannedChampions: theirTeam ban object = {}, championId = {}", ban, championId);
+                                if (championId != 0) {
+                                    bannedChampions.add(championId);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    logger.debug("getBannedChampions: bans is neither array nor object: {}", bans);
                 }
                 
+                logger.info("getBannedChampions: found {} banned champions: {}", bannedChampions.size(), bannedChampions);
                 return bannedChampions;
             });
     }

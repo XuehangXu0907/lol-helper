@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 >nul
-title LOL Helper v2.1 - Quick Build
+title LOL Helper v2.2 - Quick Build
 
 echo ================================
-echo   LOL Helper v2.1 Quick Build
+echo   LOL Helper v2.2 Quick Build
 echo ================================
 echo.
 
@@ -36,14 +36,23 @@ if %errorlevel% neq 0 (
 )
 echo ✅ Packaging successful
 
+REM 动态获取版本号
+for /f "tokens=1,2 delims=<>" %%i in ('findstr "<version>" pom.xml') do (
+    if "%%i"=="version" (
+        set VERSION=%%j
+        goto :version_found
+    )
+)
+:version_found
+
 echo.
-if exist "target\lol-auto-ban-pick-tool-2.1.0-shaded.jar" (
+if exist "target\lol-auto-ban-pick-tool-%VERSION%-shaded.jar" (
     echo 📦 Generated files:
-    echo   - target\lol-auto-ban-pick-tool-2.1.0-shaded.jar (Fat JAR)
-    echo   - target\lol-auto-ban-pick-tool-2.1.0.jar (Regular JAR)
+    echo   - target\lol-auto-ban-pick-tool-%VERSION%-shaded.jar (Fat JAR)
+    echo   - target\lol-auto-ban-pick-tool-%VERSION%.jar (Regular JAR)
     echo.
     echo 🚀 Quick test:
-    echo   java -jar target\lol-auto-ban-pick-tool-2.1.0-shaded.jar
+    echo   java -jar target\lol-auto-ban-pick-tool-%VERSION%-shaded.jar
     echo.
     echo 📋 Next steps:
     echo   1. Run build-installer.bat to create MSI installer

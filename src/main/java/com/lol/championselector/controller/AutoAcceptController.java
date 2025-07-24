@@ -34,12 +34,46 @@ import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 public class AutoAcceptController implements Initializable {
     private static final Logger logger = LoggerFactory.getLogger(AutoAcceptController.class);
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
+    
+    /**
+     * 队列选择结果类
+     */
+    private static class QueueSelectionResult {
+        private final AutoAcceptConfig.ChampionInfo champion;
+        private final int queuePosition; // 0-based position in queue
+        private final int totalQueueSize;
+        private final String source; // "position_queue", "global_default", etc.
+        
+        public QueueSelectionResult(AutoAcceptConfig.ChampionInfo champion, int queuePosition, int totalQueueSize, String source) {
+            this.champion = champion;
+            this.queuePosition = queuePosition;
+            this.totalQueueSize = totalQueueSize;
+            this.source = source;
+        }
+        
+        public AutoAcceptConfig.ChampionInfo getChampion() { return champion; }
+        public int getQueuePosition() { return queuePosition; }
+        public int getTotalQueueSize() { return totalQueueSize; }
+        public String getSource() { return source; }
+        
+        public String getDisplayText() {
+            if ("global_default".equals(source)) {
+                return champion.toString() + " (全局默认)";
+            } else if ("position_queue".equals(source)) {
+                return champion.toString() + " (" + (queuePosition + 1) + "/" + totalQueueSize + ")";
+            } else {
+                return champion.toString();
+            }
+        }
+    }
     
     @FXML private Label connectionStatusLabel;
     
@@ -50,22 +84,24 @@ public class AutoAcceptController implements Initializable {
     @FXML private Spinner<Integer> checkIntervalSpinner;
     
     @FXML private CheckBox autoBanCheckBox;
-    @FXML private Button selectBanChampionButton;
-    @FXML private Label banChampionLabel;
-    
     @FXML private CheckBox autoPickCheckBox;
-    @FXML private Button selectPickChampionButton;
-    @FXML private Label pickChampionLabel;
     
-    // Champion avatars
-    @FXML private ImageView banChampionAvatar;
-    @FXML private ImageView pickChampionAvatar;
+    // Simple delay ban settings
+    @FXML private CheckBox useSimpleDelayBanCheckBox;
+    @FXML private Spinner<Integer> simpleBanDelaySpinner;
+    
+    
+    // Queue status display components
+    @FXML private VBox banQueueStatus;
+    @FXML private Label banQueueLabel;
+    @FXML private HBox banQueuePreview;
+    @FXML private VBox pickQueueStatus;
+    @FXML private Label pickQueueLabel;
+    @FXML private HBox pickQueuePreview;
     
     @FXML private TextArea statusTextArea;
     
-    @FXML private MenuButton languageMenuButton;
-    @FXML private MenuItem chineseMenuItem;
-    @FXML private MenuItem englishMenuItem;
+    @FXML private Button languageToggleButton;
     
     // System Tray and Auto Start settings
     @FXML private CheckBox systemTrayCheckBox;
@@ -136,6 +172,11 @@ public class AutoAcceptController implements Initializable {
         // 设置检查间隔spinner
         checkIntervalSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(500, 5000, 1000, 100));
         
+        // 设置简单延迟Ban的spinner
+        if (simpleBanDelaySpinner != null) {
+            simpleBanDelaySpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 60, 25, 1));
+        }
+        
         // 初始化分路下拉框
         initializePositionComboBox();
         
@@ -143,8 +184,6 @@ public class AutoAcceptController implements Initializable {
         updateConnectionStatus(false);
         updateGamePhase(GamePhase.NONE);
         
-        // 初始化头像显示
-        initializeAvatars();
         
         appendStatus("应用程序已启动...");
         
@@ -167,6 +206,7 @@ public class AutoAcceptController implements Initializable {
     private void initializePositionComboBox() {
         if (positionComboBox != null) {
             positionComboBox.getItems().addAll(
+                "global",   // 全局设置
                 "top",      // 上路
                 "jungle",   // 打野
                 "middle",   // 中路
@@ -183,16 +223,19 @@ public class AutoAcceptController implements Initializable {
                 
                 @Override
                 public String fromString(String string) {
-                    switch (string) {
-                        case "上路": return "top";
-                        case "打野": return "jungle";
-                        case "中路": return "middle";
-                        case "下路ADC": return "bottom";
-                        case "辅助": return "utility";
-                        default: return string;
-                    }
+                    // 检查中文翻译
+                    if (string.equals(languageManager.getString("position.global"))) return "global";
+                    if (string.equals(languageManager.getString("position.top"))) return "top";
+                    if (string.equals(languageManager.getString("position.jungle"))) return "jungle";
+                    if (string.equals(languageManager.getString("position.middle"))) return "middle";
+                    if (string.equals(languageManager.getString("position.bottom"))) return "bottom";
+                    if (string.equals(languageManager.getString("position.utility"))) return "utility";
+                    return string;
                 }
             });
+            
+            // 默认选择全局设置
+            positionComboBox.setValue("global");
         }
     }
     
@@ -241,20 +284,139 @@ public class AutoAcceptController implements Initializable {
             usePositionPresetsCheckBox.setSelected(config.getChampionSelect().isUsePositionBasedSelection());
         }
         
-        updateChampionLabels();
-        updateAutoStartStatus();
-        updatePositionPresetsUI();
-    }
-    
-    private void updateChampionLabels() {
-        if (config.getChampionSelect().getBanChampion() != null) {
-            banChampionLabel.setText(config.getChampionSelect().getBanChampion().toString());
-            loadChampionAvatar(banChampionAvatar, config.getChampionSelect().getBanChampion().getKey());
+        // Simple delay ban settings
+        if (useSimpleDelayBanCheckBox != null) {
+            useSimpleDelayBanCheckBox.setSelected(config.getChampionSelect().isUseSimpleDelayBan());
+        }
+        if (simpleBanDelaySpinner != null) {
+            simpleBanDelaySpinner.getValueFactory().setValue(config.getChampionSelect().getSimpleBanDelaySeconds());
         }
         
-        if (config.getChampionSelect().getPickChampion() != null) {
-            pickChampionLabel.setText(config.getChampionSelect().getPickChampion().toString());
-            loadChampionAvatar(pickChampionAvatar, config.getChampionSelect().getPickChampion().getKey());
+        updateAutoStartStatus();
+        updatePositionPresetsUI();
+        updateSimpleDelayBanUI();
+        
+        // 更新队列状态显示
+        updateQueueStatusDisplay();
+    }
+    
+    /**
+     * 更新队列状态显示
+     */
+    private void updateQueueStatusDisplay() {
+        String userSelectedPosition = getUserSelectedPosition();
+        
+        if (config.getChampionSelect().isUsePositionBasedSelection() && userSelectedPosition != null) {
+            AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(userSelectedPosition);
+            if (positionConfig != null) {
+                // 显示ban队列状态
+                updateBanQueueDisplay(positionConfig);
+                // 显示pick队列状态
+                updatePickQueueDisplay(positionConfig);
+                return;
+            }
+        }
+        
+        // 如果没有分路配置，隐藏队列状态显示
+        banQueueStatus.setVisible(false);
+        pickQueueStatus.setVisible(false);
+    }
+    
+    /**
+     * 更新ban队列显示
+     */
+    private void updateBanQueueDisplay(AutoAcceptConfig.PositionConfig positionConfig) {
+        if (banQueuePreview == null || banQueueLabel == null || banQueueStatus == null) {
+            return;
+        }
+        
+        List<AutoAcceptConfig.ChampionInfo> banChampions = positionConfig.getBanChampions();
+        if (banChampions != null && !banChampions.isEmpty()) {
+            banQueueStatus.setVisible(true);
+            banQueueLabel.setText("Ban队列 (" + banChampions.size() + "/5): ");
+            
+            // 清除旧的预览项
+            banQueuePreview.getChildren().clear();
+            
+            // 获取当前可用的英雄位置（模拟已ban状态）
+            Set<Integer> simulatedBannedChampions = new HashSet<>();
+            // 这里可以添加实际的已ban英雄，但为了演示我们暂时使用空集合
+            
+            int currentActivePosition = -1;
+            for (int i = 0; i < banChampions.size(); i++) {
+                AutoAcceptConfig.ChampionInfo champion = banChampions.get(i);
+                if (champion.getChampionId() != null && !simulatedBannedChampions.contains(champion.getChampionId()) && currentActivePosition == -1) {
+                    currentActivePosition = i;
+                }
+            }
+            
+            // 添加队列预览项
+            for (int i = 0; i < banChampions.size(); i++) {
+                AutoAcceptConfig.ChampionInfo champion = banChampions.get(i);
+                Label championLabel = new Label((i + 1) + ". " + champion.getNameCn());
+                championLabel.setStyle("-fx-font-size: 10px; -fx-padding: 2px 4px; -fx-background-color: #f0f0f0; -fx-background-radius: 3px;");
+                
+                if (i == currentActivePosition) {
+                    // 当前将被选择的英雄高亮显示
+                    championLabel.setStyle("-fx-font-size: 10px; -fx-padding: 2px 4px; -fx-background-color: #4CAF50; -fx-text-fill: white; -fx-background-radius: 3px;");
+                    championLabel.setText("►" + championLabel.getText()); // 添加箭头标识
+                }
+                
+                banQueuePreview.getChildren().add(championLabel);
+            }
+        } else {
+            banQueueStatus.setVisible(false);
+        }
+    }
+    
+    /**
+     * 更新pick队列显示
+     */
+    private void updatePickQueueDisplay(AutoAcceptConfig.PositionConfig positionConfig) {
+        if (pickQueuePreview == null || pickQueueLabel == null || pickQueueStatus == null) {
+            return;
+        }
+        
+        List<AutoAcceptConfig.ChampionInfo> pickChampions = positionConfig.getPickChampions();
+        if (pickChampions != null && !pickChampions.isEmpty()) {
+            pickQueueStatus.setVisible(true);
+            pickQueueLabel.setText("Pick队列 (" + pickChampions.size() + "/5): ");
+            
+            // 清除旧的预览项
+            pickQueuePreview.getChildren().clear();
+            
+            // 获取当前可用的英雄位置（模拟已ban/pick状态）
+            Set<Integer> simulatedBannedChampions = new HashSet<>();
+            Set<Integer> simulatedPickedChampions = new HashSet<>();
+            // 这里可以添加实际的已ban/pick英雄，但为了演示我们暂时使用空集合
+            
+            int currentActivePosition = -1;
+            for (int i = 0; i < pickChampions.size(); i++) {
+                AutoAcceptConfig.ChampionInfo champion = pickChampions.get(i);
+                if (champion.getChampionId() != null && 
+                    !simulatedBannedChampions.contains(champion.getChampionId()) &&
+                    !simulatedPickedChampions.contains(champion.getChampionId()) && 
+                    currentActivePosition == -1) {
+                    currentActivePosition = i;
+                }
+            }
+            
+            // 添加队列预览项
+            for (int i = 0; i < pickChampions.size(); i++) {
+                AutoAcceptConfig.ChampionInfo champion = pickChampions.get(i);
+                Label championLabel = new Label((i + 1) + ". " + champion.getNameCn());
+                championLabel.setStyle("-fx-font-size: 10px; -fx-padding: 2px 4px; -fx-background-color: #f0f0f0; -fx-background-radius: 3px;");
+                
+                if (i == currentActivePosition) {
+                    // 当前将被选择的英雄高亮显示
+                    championLabel.setStyle("-fx-font-size: 10px; -fx-padding: 2px 4px; -fx-background-color: #2196F3; -fx-text-fill: white; -fx-background-radius: 3px;");
+                    championLabel.setText("►" + championLabel.getText()); // 添加箭头标识
+                }
+                
+                pickQueuePreview.getChildren().add(championLabel);
+            }
+        } else {
+            pickQueueStatus.setVisible(false);
         }
     }
     
@@ -289,11 +451,6 @@ public class AutoAcceptController implements Initializable {
         }
     }
     
-    private void initializeAvatars() {
-        // 为默认英雄加载头像
-        loadChampionAvatar(banChampionAvatar, "Ekko");
-        loadChampionAvatar(pickChampionAvatar, "Jinx");
-    }
     
     private void setupLCUMonitor() {
         lcuMonitor = new LCUMonitor();
@@ -450,28 +607,30 @@ public class AutoAcceptController implements Initializable {
     }
     
     @FXML
-    private void onSelectBanChampionClicked() {
-        selectChampion("Ban", (champion) -> {
-            AutoAcceptConfig.ChampionInfo championInfo = new AutoAcceptConfig.ChampionInfo(champion);
-            config.getChampionSelect().setBanChampion(championInfo);
-            banChampionLabel.setText(championInfo.toString());
-            loadChampionAvatar(banChampionAvatar, champion.getKey());
+    private void onUseSimpleDelayBanToggled() {
+        if (useSimpleDelayBanCheckBox != null && config != null) {
+            boolean enabled = useSimpleDelayBanCheckBox.isSelected();
+            config.getChampionSelect().setUseSimpleDelayBan(enabled);
             saveConfiguration();
-            appendStatus("已设置Ban英雄：" + championInfo.toString());
-        });
+            
+            String status = enabled ? "启用" : "禁用";
+            appendStatus("简单延迟Ban已" + status);
+            
+            // 更新UI状态
+            updateSimpleDelayBanUI();
+        }
     }
     
-    @FXML
-    private void onSelectPickChampionClicked() {
-        selectChampion("Pick", (champion) -> {
-            AutoAcceptConfig.ChampionInfo championInfo = new AutoAcceptConfig.ChampionInfo(champion);
-            config.getChampionSelect().setPickChampion(championInfo);
-            pickChampionLabel.setText(championInfo.toString());
-            loadChampionAvatar(pickChampionAvatar, champion.getKey());
-            saveConfiguration();
-            appendStatus("已设置Pick英雄：" + championInfo.toString());
-        });
+    /**
+     * 更新简单延迟Ban UI状态
+     */
+    private void updateSimpleDelayBanUI() {
+        if (simpleBanDelaySpinner != null && useSimpleDelayBanCheckBox != null) {
+            boolean enabled = useSimpleDelayBanCheckBox.isSelected();
+            simpleBanDelaySpinner.setDisable(!enabled);
+        }
     }
+    
     
     private void selectChampion(String mode, ChampionSelectionCallback callback) {
         try {
@@ -620,18 +779,18 @@ public class AutoAcceptController implements Initializable {
                             int actionId = action.path("id").asInt();
                             int championId = action.path("championId").asInt(0);
                             
-                            // 只处理属于当前玩家且正在进行中且未完成的动作
-                            // 还要确保championId为0（未选择英雄）且未处理过
-                            if (actorCellId == localCellId && isInProgress && !completed 
-                                && championId == 0 && !processedActions.contains(actionId)) {
+                            // 处理ban和pick操作的条件不同
+                            if (actorCellId == localCellId && isInProgress && !completed && !processedActions.contains(actionId)) {
                                 
                                 logger.debug("Processing action - ID: {}, Type: {}, ChampionId: {}", 
                                            actionId, type, championId);
                                 
                                 if ("ban".equals(type) && config.getChampionSelect().isAutoBanEnabled()) {
+                                    // Ban操作不需要检查championId，因为可能已经有hover英雄
                                     processedActions.add(actionId); // 立即标记为已处理，防止重复
                                     handleAutoBan(actionId);
-                                } else if ("pick".equals(type) && config.getChampionSelect().isAutoPickEnabled()) {
+                                } else if ("pick".equals(type) && config.getChampionSelect().isAutoPickEnabled() && championId == 0) {
+                                    // Pick操作仍然需要确保championId为0（未选择英雄）
                                     processedActions.add(actionId); // 立即标记为已处理，防止重复
                                     handleAutoPick(actionId);
                                 }
@@ -645,86 +804,710 @@ public class AutoAcceptController implements Initializable {
         });
     }
     
+    /**
+     * 获取用户手动选择的分路位置
+     */
+    private String getUserSelectedPosition() {
+        if (positionComboBox != null && positionComboBox.getValue() != null) {
+            String selectedPosition = positionComboBox.getValue();
+            logger.debug("User selected position from UI: {}", selectedPosition);
+            return selectedPosition;
+        }
+        return null;
+    }
+    
+    /**
+     * 根据已ban和已pick英雄列表选择可用的pick英雄
+     */
+    private AutoAcceptConfig.ChampionInfo selectAvailablePickChampion(AutoAcceptConfig.ChampionInfo defaultPickChampion, Set<Integer> bannedChampions, Set<Integer> pickedChampions) {
+        logger.info("selectAvailablePickChampion: defaultPickChampion = {}, bannedChampions = {}, pickedChampions = {}", defaultPickChampion, bannedChampions, pickedChampions);
+        logger.info("selectAvailablePickChampion: usePositionBasedSelection = {}, currentPlayerPosition = {}", 
+                   config.getChampionSelect().isUsePositionBasedSelection(), currentPlayerPosition);
+        
+        // 获取用户手动选择的分路作为备用
+        String userSelectedPosition = getUserSelectedPosition();
+        logger.info("selectAvailablePickChampion: userSelectedPosition = {}", userSelectedPosition);
+        
+        // 优先级1：如果启用了分路预设，优先从LCU API检测的位置选择英雄
+        if (config.getChampionSelect().isUsePositionBasedSelection() && currentPlayerPosition != null) {
+            AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(currentPlayerPosition);
+            logger.info("selectAvailablePickChampion: positionConfig for {} = {}", currentPlayerPosition, positionConfig);
+            
+            if (positionConfig != null) {
+                logger.info("selectAvailablePickChampion: available pick champions in queue = {}", positionConfig.getPickChampions());
+                AutoAcceptConfig.ChampionInfo alternateChampion = positionConfig.getAlternatePickChampion(bannedChampions, pickedChampions);
+                logger.info("selectAvailablePickChampion: getAlternatePickChampion returned = {}", alternateChampion);
+                
+                if (alternateChampion != null) {
+                    alternateChampion.ensureChampionId();
+                    logger.info("Selected pick champion {} from LCU detected position {} queue (priority 1, skipping {} banned + {} picked champions)", 
+                               alternateChampion, currentPlayerPosition, bannedChampions.size(), pickedChampions.size());
+                    return alternateChampion;
+                }
+                logger.debug("No available champions in LCU detected position {} pick queue, trying user selected position", currentPlayerPosition);
+            } else {
+                logger.warn("selectAvailablePickChampion: no position config found for LCU detected position {}", currentPlayerPosition);
+            }
+        } else {
+            logger.info("selectAvailablePickChampion: LCU position-based selection disabled or no current position from API");
+        }
+        
+        // 优先级2：如果LCU API位置不可用，使用用户手动选择的分路
+        if (config.getChampionSelect().isUsePositionBasedSelection() && userSelectedPosition != null) {
+            AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(userSelectedPosition);
+            logger.info("selectAvailablePickChampion: user selected positionConfig for {} = {}", userSelectedPosition, positionConfig);
+            
+            if (positionConfig != null) {
+                logger.info("selectAvailablePickChampion: available pick champions in user selected queue = {}", positionConfig.getPickChampions());
+                AutoAcceptConfig.ChampionInfo alternateChampion = positionConfig.getAlternatePickChampion(bannedChampions, pickedChampions);
+                logger.info("selectAvailablePickChampion: getAlternatePickChampion from user selected returned = {}", alternateChampion);
+                
+                if (alternateChampion != null) {
+                    alternateChampion.ensureChampionId();
+                    logger.info("Selected pick champion {} from user selected position {} queue (priority 2, skipping {} banned + {} picked champions)", 
+                               alternateChampion, userSelectedPosition, bannedChampions.size(), pickedChampions.size());
+                    return alternateChampion;
+                }
+                logger.debug("No available champions in user selected position {} pick queue, trying fallback options", userSelectedPosition);
+            } else {
+                logger.warn("selectAvailablePickChampion: no position config found for user selected position {}", userSelectedPosition);
+            }
+        } else {
+            logger.info("selectAvailablePickChampion: no user selected position available or position-based selection disabled");
+        }
+        
+        // 优先级3：当前两个优先级都不可用时，尝试从所有分路配置中寻找可用英雄
+        if (config.getChampionSelect().isUsePositionBasedSelection() && currentPlayerPosition == null && userSelectedPosition == null) {
+            logger.info("No specific position available but position-based selection enabled, searching all position configs for available pick champion");
+            
+            // 遍历所有分路配置，寻找未被ban/pick的英雄
+            for (String position : config.getChampionSelect().getPositionConfigs().keySet()) {
+                AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(position);
+                if (positionConfig != null) {
+                    AutoAcceptConfig.ChampionInfo alternateChampion = positionConfig.getAlternatePickChampion(bannedChampions, pickedChampions);
+                    if (alternateChampion != null) {
+                        alternateChampion.ensureChampionId();
+                        logger.info("Selected pick champion {} from {} position queue as fallback (priority 3, skipping {} banned + {} picked champions)", 
+                                   alternateChampion, position, bannedChampions.size(), pickedChampions.size());
+                        return alternateChampion;
+                    }
+                }
+            }
+            logger.debug("No available champions found in any position config, trying global default");
+        }
+        
+        // 优先级4：回退到默认英雄（如果未被ban/pick）
+        if (defaultPickChampion != null && defaultPickChampion.getChampionId() != null &&
+            !bannedChampions.contains(defaultPickChampion.getChampionId()) &&
+            !pickedChampions.contains(defaultPickChampion.getChampionId())) {
+            logger.info("Using fallback default pick champion {} (priority 4)", defaultPickChampion);
+            return defaultPickChampion;
+        }
+        
+        // 优先级5：所有选项都不可用
+        logger.warn("No available pick champion found - all position queues exhausted and default champion banned/picked (banned: {}, picked: {})", bannedChampions, pickedChampions);
+        return null;
+    }
+    
+    /**
+     * 根据已ban英雄列表选择可用的ban英雄
+     */
+    private AutoAcceptConfig.ChampionInfo selectAvailableBanChampion(AutoAcceptConfig.ChampionInfo defaultBanChampion, Set<Integer> bannedChampions) {
+        logger.info("selectAvailableBanChampion: defaultBanChampion = {}, bannedChampions = {}", defaultBanChampion, bannedChampions);
+        logger.info("selectAvailableBanChampion: usePositionBasedSelection = {}, currentPlayerPosition = {}", 
+                   config.getChampionSelect().isUsePositionBasedSelection(), currentPlayerPosition);
+        
+        // 获取用户手动选择的分路作为备用
+        String userSelectedPosition = getUserSelectedPosition();
+        logger.info("selectAvailableBanChampion: userSelectedPosition = {}", userSelectedPosition);
+        
+        // 优先级1：如果启用了分路预设，优先从LCU API检测的位置选择英雄
+        if (config.getChampionSelect().isUsePositionBasedSelection() && currentPlayerPosition != null) {
+            AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(currentPlayerPosition);
+            logger.info("selectAvailableBanChampion: positionConfig for {} = {}", currentPlayerPosition, positionConfig);
+            
+            if (positionConfig != null) {
+                logger.info("selectAvailableBanChampion: available ban champions in queue = {}", positionConfig.getBanChampions());
+                AutoAcceptConfig.ChampionInfo alternateChampion = positionConfig.getAlternateBanChampion(bannedChampions);
+                logger.info("selectAvailableBanChampion: getAlternateBanChampion returned = {}", alternateChampion);
+                
+                if (alternateChampion != null) {
+                    alternateChampion.ensureChampionId();
+                    logger.info("Selected ban champion {} from LCU detected position {} queue (priority 1, skipping {} banned champions)", 
+                               alternateChampion, currentPlayerPosition, bannedChampions.size());
+                    return alternateChampion;
+                }
+                logger.debug("No available champions in LCU detected position {} ban queue, trying user selected position", currentPlayerPosition);
+            } else {
+                logger.warn("selectAvailableBanChampion: no position config found for LCU detected position {}", currentPlayerPosition);
+            }
+        } else {
+            logger.info("selectAvailableBanChampion: LCU position-based selection disabled or no current position from API");
+        }
+        
+        // 优先级2：如果LCU API位置不可用，使用用户手动选择的分路
+        if (config.getChampionSelect().isUsePositionBasedSelection() && userSelectedPosition != null) {
+            AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(userSelectedPosition);
+            logger.info("selectAvailableBanChampion: user selected positionConfig for {} = {}", userSelectedPosition, positionConfig);
+            
+            if (positionConfig != null) {
+                logger.info("selectAvailableBanChampion: available ban champions in user selected queue = {}", positionConfig.getBanChampions());
+                AutoAcceptConfig.ChampionInfo alternateChampion = positionConfig.getAlternateBanChampion(bannedChampions);
+                logger.info("selectAvailableBanChampion: getAlternateBanChampion from user selected returned = {}", alternateChampion);
+                
+                if (alternateChampion != null) {
+                    alternateChampion.ensureChampionId();
+                    logger.info("Selected ban champion {} from user selected position {} queue (priority 2, skipping {} banned champions)", 
+                               alternateChampion, userSelectedPosition, bannedChampions.size());
+                    return alternateChampion;
+                }
+                logger.debug("No available champions in user selected position {} ban queue, trying fallback options", userSelectedPosition);
+            } else {
+                logger.warn("selectAvailableBanChampion: no position config found for user selected position {}", userSelectedPosition);
+            }
+        } else {
+            logger.info("selectAvailableBanChampion: no user selected position available or position-based selection disabled");
+        }
+        
+        // 优先级3：当前两个优先级都不可用时，尝试从所有分路配置中寻找可用英雄
+        if (config.getChampionSelect().isUsePositionBasedSelection() && currentPlayerPosition == null && userSelectedPosition == null) {
+            logger.info("No specific position available but position-based selection enabled, searching all position configs for available champion");
+            
+            // 遍历所有分路配置，寻找未被ban的英雄
+            for (String position : config.getChampionSelect().getPositionConfigs().keySet()) {
+                AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(position);
+                if (positionConfig != null) {
+                    AutoAcceptConfig.ChampionInfo alternateChampion = positionConfig.getAlternateBanChampion(bannedChampions);
+                    if (alternateChampion != null) {
+                        alternateChampion.ensureChampionId();
+                        logger.info("Selected ban champion {} from {} position queue as fallback (priority 3, skipping {} banned champions)", 
+                                   alternateChampion, position, bannedChampions.size());
+                        return alternateChampion;
+                    }
+                }
+            }
+            logger.debug("No available champions found in any position config, trying global default");
+        }
+        
+        // 优先级4：回退到默认英雄（如果未被ban）
+        if (defaultBanChampion != null && defaultBanChampion.getChampionId() != null &&
+            !bannedChampions.contains(defaultBanChampion.getChampionId())) {
+            logger.info("Using fallback default ban champion {} (priority 4)", defaultBanChampion);
+            return defaultBanChampion;
+        }
+        
+        // 优先级5：所有选项都不可用
+        logger.warn("No available ban champion found - all position queues exhausted and default champion banned (banned champions: {})", bannedChampions);
+        return null;
+    }
+    
+    /**
+     * 增强版本的ban英雄选择，返回详细的队列信息
+     */
+    private QueueSelectionResult selectAvailableBanChampionWithDetails(AutoAcceptConfig.ChampionInfo defaultBanChampion, Set<Integer> bannedChampions) {
+        String userSelectedPosition = getUserSelectedPosition();
+        
+        // 优先级1：如果启用了分路预设，优先从LCU API检测的位置选择英雄
+        if (config.getChampionSelect().isUsePositionBasedSelection() && currentPlayerPosition != null) {
+            AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(currentPlayerPosition);
+            if (positionConfig != null) {
+                QueueSelectionResult result = findAvailableChampionInQueue(positionConfig.getBanChampions(), bannedChampions, "position_queue");
+                if (result != null) {
+                    result.getChampion().ensureChampionId();
+                    logger.info("Selected ban champion {} from LCU detected position {} queue (position {} of {})", 
+                               result.getChampion(), currentPlayerPosition, result.getQueuePosition() + 1, result.getTotalQueueSize());
+                    return result;
+                }
+            }
+        }
+        
+        // 优先级2：如果LCU API位置不可用，使用用户手动选择的分路
+        if (config.getChampionSelect().isUsePositionBasedSelection() && userSelectedPosition != null) {
+            AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(userSelectedPosition);
+            if (positionConfig != null) {
+                QueueSelectionResult result = findAvailableChampionInQueue(positionConfig.getBanChampions(), bannedChampions, "position_queue");
+                if (result != null) {
+                    result.getChampion().ensureChampionId();
+                    logger.info("Selected ban champion {} from user selected position {} queue (position {} of {})", 
+                               result.getChampion(), userSelectedPosition, result.getQueuePosition() + 1, result.getTotalQueueSize());
+                    return result;
+                }
+            }
+        }
+        
+        // 优先级3：搜索所有分路配置寻找可用英雄
+        if (config.getChampionSelect().isUsePositionBasedSelection()) {
+            for (Map.Entry<String, AutoAcceptConfig.PositionConfig> entry : config.getChampionSelect().getPositionConfigs().entrySet()) {
+                String positionName = entry.getKey();
+                AutoAcceptConfig.PositionConfig positionConfig = entry.getValue();
+                
+                QueueSelectionResult result = findAvailableChampionInQueue(positionConfig.getBanChampions(), bannedChampions, "other_position_queue");
+                if (result != null) {
+                    result.getChampion().ensureChampionId();
+                    logger.info("Selected ban champion {} from {} position queue (position {} of {}) - fallback search", 
+                               result.getChampion(), positionName, result.getQueuePosition() + 1, result.getTotalQueueSize());
+                    return result;
+                }
+            }
+        }
+        
+        // 优先级4：使用全局默认英雄（如果未被ban）
+        if (defaultBanChampion != null && defaultBanChampion.getChampionId() != null &&
+            !bannedChampions.contains(defaultBanChampion.getChampionId())) {
+            logger.info("Using global default ban champion {} (priority 4)", defaultBanChampion);
+            return new QueueSelectionResult(defaultBanChampion, 0, 1, "global_default");
+        }
+        
+        // 优先级5：无可用英雄
+        logger.warn("No available ban champion found - all options exhausted (banned champions: {})", bannedChampions);
+        return null;
+    }
+    
+    /**
+     * 在队列中查找可用英雄
+     */
+    private QueueSelectionResult findAvailableChampionInQueue(List<AutoAcceptConfig.ChampionInfo> championQueue, Set<Integer> bannedChampions, String source) {
+        if (championQueue == null || championQueue.isEmpty()) {
+            return null;
+        }
+        
+        for (int i = 0; i < championQueue.size(); i++) {
+            AutoAcceptConfig.ChampionInfo champion = championQueue.get(i);
+            if (champion.getChampionId() != null && !bannedChampions.contains(champion.getChampionId())) {
+                return new QueueSelectionResult(champion, i, championQueue.size(), source);
+            }
+        }
+        return null;
+    }
+    
     private void handleAutoBan(int actionId) {
         AutoAcceptConfig.ChampionInfo banChampion = config.getChampionSelect().getBanChampion();
+        logger.info("handleAutoBan called - Action ID: {}, Ban champion from config: {}, Position-based selection enabled: {}", 
+                   actionId, banChampion, config.getChampionSelect().isUsePositionBasedSelection());
+        
         if (banChampion == null || banChampion.getChampionId() == null) {
             appendStatus("自动Ban失败：未设置Ban英雄或英雄ID无效");
             processedActions.remove(actionId); // 移除失败的action，允许重试
             return;
         }
         
-        // 使用智能时机管理器处理Ban操作
-        if (smartTimingManager != null && config.getChampionSelect().isSmartTimingEnabled()) {
-            logger.info("Using smart timing for auto-ban action ID: {} with champion: {}", actionId, banChampion);
-            appendStatus("智能Ban调度：" + banChampion.toString() + " (等待最佳时机)");
-            
-            smartTimingManager.handleSmartBan(actionId, banChampion, currentPlayerPosition);
+        // 如果启用了分路预设但当前位置为null，先尝试获取位置信息
+        if (config.getChampionSelect().isUsePositionBasedSelection() && currentPlayerPosition == null) {
+            logger.info("Position-based selection enabled but currentPlayerPosition is null, updating position first");
+            // 尝试多次获取位置信息，因为在英雄选择初期位置可能还未分配
+            tryGetPlayerPositionWithRetry(actionId, banChampion, 0);
         } else {
-            // 传统的立即执行方式
-            logger.info("Executing immediate auto-ban for action ID: {} with champion: {}", actionId, banChampion);
-            appendStatus("正在自动Ban英雄：" + banChampion.toString() + " (Action ID: " + actionId + ")");
-            
-            lcuMonitor.banChampion(banChampion.getChampionId(), actionId)
-                .thenAccept(success -> Platform.runLater(() -> {
-                    if (success) {
-                        appendStatus("✓ 成功Ban英雄：" + banChampion.toString());
-                        logger.info("Successfully banned champion for action ID: {}", actionId);
-                    } else {
-                        appendStatus("✗ Ban英雄失败：" + banChampion.toString());
-                        logger.warn("Failed to ban champion for action ID: {}", actionId);
-                        processedActions.remove(actionId); // 移除失败的action，允许重试
-                    }
-                }))
-                .exceptionally(throwable -> {
+            // 直接执行ban逻辑
+            proceedWithAutoBan(actionId, banChampion);
+        }
+    }
+    
+    /**
+     * 带重试机制的位置获取
+     */
+    private void tryGetPlayerPositionWithRetry(int actionId, AutoAcceptConfig.ChampionInfo banChampion, int attempt) {
+        if (attempt >= 3) {
+            logger.warn("Failed to get player position after 3 attempts, proceeding with global config");
+            proceedWithAutoBan(actionId, banChampion);
+            return;
+        }
+        
+        lcuMonitor.getPlayerPosition()
+            .thenAccept(position -> {
+                if (position != null && !position.trim().isEmpty()) {
+                    currentPlayerPosition = position;
+                    logger.info("Updated currentPlayerPosition to: {} (attempt {})", position, attempt + 1);
                     Platform.runLater(() -> {
-                        appendStatus("✗ Ban英雄异常：" + throwable.getMessage());
-                        logger.error("Exception during ban for action ID: " + actionId, throwable);
-                        processedActions.remove(actionId); // 移除异常的action，允许重试
+                        appendStatus("检测到分路位置: " + translatePosition(position));
+                        updatePositionStatusUI(position);
                     });
+                    // 成功获取位置，继续执行ban逻辑
+                    proceedWithAutoBan(actionId, banChampion);
+                } else {
+                    logger.debug("Position still empty/null, attempt {}/3", attempt + 1);
+                    // 延迟后重试
+                    if (attempt < 2) {
+                        Platform.runLater(() -> {
+                            Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+                                tryGetPlayerPositionWithRetry(actionId, banChampion, attempt + 1);
+                            }));
+                            timeline.play();
+                        });
+                    } else {
+                        logger.warn("Position still empty after {} attempts, proceeding with global config", attempt + 1);
+                        proceedWithAutoBan(actionId, banChampion);
+                    }
+                }
+            })
+            .exceptionally(throwable -> {
+                logger.warn("Failed to get player position (attempt {}), retrying...", attempt + 1, throwable);
+                if (attempt < 2) {
+                    Platform.runLater(() -> {
+                        Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+                            tryGetPlayerPositionWithRetry(actionId, banChampion, attempt + 1);
+                        }));
+                        timeline.play();
+                    });
+                } else {
+                    logger.warn("Failed to get player position after {} attempts, proceeding with global config", attempt + 1);
+                    proceedWithAutoBan(actionId, banChampion);
+                }
+                return null;
+            });
+    }
+    
+    /**
+     * 继续执行自动ban逻辑
+     */
+    private void proceedWithAutoBan(int actionId, AutoAcceptConfig.ChampionInfo banChampion) {
+        // 获取已ban英雄列表，用于智能选择可用英雄
+        lcuMonitor.getBannedChampions()
+            .thenAccept(bannedChampions -> {
+                logger.info("Currently banned champions: {}", bannedChampions);
+                
+                // 三种Ban执行模式
+                if (config.getChampionSelect().isUseSimpleDelayBan()) {
+                    // 模式1：简单延迟执行
+                    handleSimpleDelayBan(actionId, banChampion, bannedChampions);
+                } else if (smartTimingManager != null && config.getChampionSelect().isSmartTimingEnabled()) {
+                    // 模式2：智能时机管理
+                    handleSmartTimingBan(actionId, banChampion, bannedChampions);
+                } else {
+                    // 模式3：立即执行
+                    handleImmediateBan(actionId, banChampion, bannedChampions);
+                }
+            })
+            .exceptionally(throwable -> {
+                logger.error("Failed to get banned champions, proceeding with default ban", throwable);
+                // 如果获取失败，仍然使用原有逻辑执行
+                if (config.getChampionSelect().isUseSimpleDelayBan()) {
+                    handleSimpleDelayBan(actionId, banChampion, new HashSet<>());
+                } else if (smartTimingManager != null && config.getChampionSelect().isSmartTimingEnabled()) {
+                    handleSmartTimingBan(actionId, banChampion, new HashSet<>());
+                } else {
+                    handleImmediateBan(actionId, banChampion, new HashSet<>());
+                }
+                return null;
+            });
+    }
+    
+    /**
+     * 简单延迟执行Ban
+     */
+    private void handleSimpleDelayBan(int actionId, AutoAcceptConfig.ChampionInfo banChampion, Set<Integer> bannedChampions) {
+        int delaySeconds = config.getChampionSelect().getSimpleBanDelaySeconds();
+        
+        // 先选择可用的ban英雄
+        AutoAcceptConfig.ChampionInfo selectedBanChampion = selectAvailableBanChampion(banChampion, bannedChampions);
+        if (selectedBanChampion == null) {
+            appendStatus("✗ 自动Ban失败：没有可用的英雄（所有英雄已被ban）");
+            processedActions.remove(actionId);
+            return;
+        }
+        
+        logger.info("Using simple delay ban for action ID: {} with champion: {} (delay: {}s)", 
+                   actionId, selectedBanChampion, delaySeconds);
+        appendStatus("简单延迟Ban：" + selectedBanChampion.toString() + " (" + delaySeconds + "秒后执行)");
+        
+        // 使用JavaFX Timeline实现延迟执行
+        Timeline delayTimeline = new Timeline(new KeyFrame(Duration.seconds(delaySeconds), e -> {
+            // 延迟执行前再次获取最新的已ban英雄列表
+            lcuMonitor.getBannedChampions()
+                .thenAccept(currentBannedChampions -> {
+                    // 再次选择可用英雄，确保延迟期间没有被其他人ban掉
+                    AutoAcceptConfig.ChampionInfo finalBanChampion = selectAvailableBanChampion(selectedBanChampion, currentBannedChampions);
+                    if (finalBanChampion == null) {
+                        Platform.runLater(() -> {
+                            appendStatus("✗ 延迟Ban失败：所有候选英雄已被ban");
+                            logger.warn("All candidate champions have been banned during delay for action {}", actionId);
+                        });
+                        return;
+                    }
+                    
+                    logger.info("Executing simple delay ban - Action ID: {}, Final champion: {}", actionId, finalBanChampion);
+                    
+                    lcuMonitor.banChampion(finalBanChampion.getChampionId(), actionId)
+                        .thenAccept(success -> Platform.runLater(() -> {
+                            if (success) {
+                                appendStatus("✓ 延迟Ban成功：" + finalBanChampion.toString());
+                                logger.info("Simple delay ban successful for action {}", actionId);
+                            } else {
+                                appendStatus("✗ 延迟Ban失败：" + finalBanChampion.toString());
+                                logger.warn("Simple delay ban failed for action {}", actionId);
+                            }
+                        }))
+                        .exceptionally(throwable -> {
+                            Platform.runLater(() -> {
+                                appendStatus("✗ 延迟Ban异常：" + throwable.getMessage());
+                                logger.error("Exception during simple delay ban for action ID: " + actionId, throwable);
+                            });
+                            return null;
+                        });
+                })
+                .exceptionally(throwable -> {
+                    // 如果获取已ban英雄失败，仍然尝试ban原来选择的英雄
+                    logger.error("Failed to get current banned champions, using previously selected champion", throwable);
+                    lcuMonitor.banChampion(selectedBanChampion.getChampionId(), actionId)
+                        .thenAccept(success -> Platform.runLater(() -> {
+                            if (success) {
+                                appendStatus("✓ 延迟Ban成功：" + selectedBanChampion.toString());
+                            } else {
+                                appendStatus("✗ 延迟Ban失败：" + selectedBanChampion.toString());
+                            }
+                        }));
                     return null;
                 });
+        }));
+        
+        delayTimeline.play();
+    }
+    
+    /**
+     * 智能时机执行Ban
+     */
+    private void handleSmartTimingBan(int actionId, AutoAcceptConfig.ChampionInfo banChampion, Set<Integer> bannedChampions) {
+        // 先选择可用的ban英雄
+        AutoAcceptConfig.ChampionInfo selectedBanChampion = selectAvailableBanChampion(banChampion, bannedChampions);
+        if (selectedBanChampion == null) {
+            appendStatus("✗ 自动Ban失败：没有可用的英雄（所有英雄已被ban）");
+            processedActions.remove(actionId);
+            return;
         }
+        
+        logger.info("Using smart timing for auto-ban action ID: {} with champion: {}", actionId, selectedBanChampion);
+        appendStatus("智能Ban调度：" + selectedBanChampion.toString() + " (等待最佳时机)");
+        
+        // 传递已ban英雄列表给智能时机管理器
+        smartTimingManager.handleSmartBan(actionId, selectedBanChampion, currentPlayerPosition, bannedChampions);
+        
+        // 添加紧急执行机制：如果剩余时间很少，直接执行
+        lcuMonitor.getRemainingTimeInPhase().thenAccept(remainingTime -> {
+            if (remainingTime <= 2) { // 如果剩余时间<=2秒，立即执行
+                logger.warn("Emergency ban execution due to low remaining time: {}s", remainingTime);
+                
+                // 再次获取最新的已ban英雄列表
+                lcuMonitor.getBannedChampions()
+                    .thenAccept(currentBannedChampions -> {
+                        AutoAcceptConfig.ChampionInfo emergencyBanChampion = selectAvailableBanChampion(selectedBanChampion, currentBannedChampions);
+                        if (emergencyBanChampion != null) {
+                            Platform.runLater(() -> appendStatus("紧急Ban执行：" + emergencyBanChampion.toString()));
+                            lcuMonitor.banChampion(emergencyBanChampion.getChampionId(), actionId)
+                                .thenAccept(success -> Platform.runLater(() -> {
+                                    if (success) {
+                                        appendStatus("✓ 紧急Ban成功：" + emergencyBanChampion.toString());
+                                        logger.info("Emergency ban successful for action {}", actionId);
+                                    } else {
+                                        appendStatus("✗ 紧急Ban失败：" + emergencyBanChampion.toString());
+                                        logger.warn("Emergency ban failed for action {}", actionId);
+                                    }
+                                }));
+                        } else {
+                            Platform.runLater(() -> {
+                                appendStatus("✗ 紧急Ban失败：所有候选英雄已被ban");
+                                logger.warn("No available champion for emergency ban");
+                            });
+                        }
+                    })
+                    .exceptionally(throwable -> {
+                        // 如果获取失败，使用原来选择的英雄
+                        logger.error("Failed to get current banned champions for emergency ban", throwable);
+                        lcuMonitor.banChampion(selectedBanChampion.getChampionId(), actionId)
+                            .thenAccept(success -> Platform.runLater(() -> {
+                                if (success) {
+                                    appendStatus("✓ 紧急Ban成功：" + selectedBanChampion.toString());
+                                } else {
+                                    appendStatus("✗ 紧急Ban失败：" + selectedBanChampion.toString());
+                                }
+                            }));
+                        return null;
+                    });
+            }
+        });
+    }
+    
+    /**
+     * 立即执行Ban
+     */
+    private void handleImmediateBan(int actionId, AutoAcceptConfig.ChampionInfo banChampion, Set<Integer> bannedChampions) {
+        // 选择可用的ban英雄
+        AutoAcceptConfig.ChampionInfo selectedBanChampion = selectAvailableBanChampion(banChampion, bannedChampions);
+        if (selectedBanChampion == null) {
+            appendStatus("✗ 自动Ban失败：没有可用的英雄（所有英雄已被ban）");
+            processedActions.remove(actionId);
+            return;
+        }
+        
+        logger.info("Executing immediate auto-ban for action ID: {} with champion: {}", actionId, selectedBanChampion);
+        appendStatus("正在自动Ban英雄：" + selectedBanChampion.toString() + " (Action ID: " + actionId + ")");
+        
+        lcuMonitor.banChampion(selectedBanChampion.getChampionId(), actionId)
+            .thenAccept(success -> Platform.runLater(() -> {
+                if (success) {
+                    appendStatus("✓ 成功Ban英雄：" + selectedBanChampion.toString());
+                    logger.info("Successfully banned champion for action ID: {}", actionId);
+                } else {
+                    appendStatus("✗ Ban英雄失败：" + selectedBanChampion.toString());
+                    logger.warn("Failed to ban champion for action ID: {}", actionId);
+                    processedActions.remove(actionId); // 移除失败的action，允许重试
+                }
+            }))
+            .exceptionally(throwable -> {
+                Platform.runLater(() -> {
+                    appendStatus("✗ Ban英雄异常：" + throwable.getMessage());
+                    logger.error("Exception during ban for action ID: " + actionId, throwable);
+                    processedActions.remove(actionId); // 移除异常的action，允许重试
+                });
+                return null;
+            });
     }
     
     private void handleAutoPick(int actionId) {
         AutoAcceptConfig.ChampionInfo pickChampion = config.getChampionSelect().getPickChampion();
+        logger.info("handleAutoPick called - Action ID: {}, Pick champion from config: {}, Position-based selection enabled: {}", 
+                   actionId, pickChampion, config.getChampionSelect().isUsePositionBasedSelection());
+        
         if (pickChampion == null || pickChampion.getChampionId() == null) {
             appendStatus("自动Pick失败：未设置Pick英雄或英雄ID无效");
             processedActions.remove(actionId); // 移除失败的action，允许重试
             return;
         }
         
-        // 使用智能时机管理器处理Pick操作
-        if (smartTimingManager != null && config.getChampionSelect().isSmartTimingEnabled()) {
-            logger.info("Using smart timing for auto-pick action ID: {} with champion: {}", actionId, pickChampion);
-            appendStatus("智能Pick调度：" + pickChampion.toString() + " (等待最佳时机)");
-            
-            smartTimingManager.handleSmartPick(actionId, pickChampion, currentPlayerPosition);
+        // 如果启用了分路预设但当前位置为null，先尝试获取位置信息
+        if (config.getChampionSelect().isUsePositionBasedSelection() && currentPlayerPosition == null) {
+            logger.info("Position-based selection enabled but currentPlayerPosition is null, updating position first");
+            // 尝试多次获取位置信息，因为在英雄选择初期位置可能还未分配
+            tryGetPlayerPositionForPick(actionId, pickChampion, 0);
         } else {
-            // 传统的立即执行方式
-            logger.info("Executing immediate auto-pick for action ID: {} with champion: {}", actionId, pickChampion);
-            appendStatus("正在自动Pick英雄：" + pickChampion.toString() + " (Action ID: " + actionId + ")");
-            
-            lcuMonitor.pickChampion(pickChampion.getChampionId(), actionId)
-                .thenAccept(success -> Platform.runLater(() -> {
-                    if (success) {
-                        appendStatus("✓ 成功Pick英雄：" + pickChampion.toString());
-                        logger.info("Successfully picked champion for action ID: {}", actionId);
-                    } else {
-                        appendStatus("✗ Pick英雄失败：" + pickChampion.toString());
-                        logger.warn("Failed to pick champion for action ID: {}", actionId);
-                        processedActions.remove(actionId); // 移除失败的action，允许重试
-                    }
-                }))
-                .exceptionally(throwable -> {
-                    Platform.runLater(() -> {
-                        appendStatus("✗ Pick英雄异常：" + throwable.getMessage());
-                        logger.error("Exception during pick for action ID: " + actionId, throwable);
-                        processedActions.remove(actionId); // 移除异常的action，允许重试
-                    });
-                    return null;
-                });
+            // 直接执行pick逻辑
+            proceedWithAutoPick(actionId, pickChampion);
         }
+    }
+    
+    /**
+     * 带重试机制的位置获取（针对pick）
+     */
+    private void tryGetPlayerPositionForPick(int actionId, AutoAcceptConfig.ChampionInfo pickChampion, int attempt) {
+        if (attempt >= 3) {
+            logger.warn("Failed to get player position after 3 attempts, proceeding with global config for pick");
+            proceedWithAutoPick(actionId, pickChampion);
+            return;
+        }
+        
+        lcuMonitor.getPlayerPosition()
+            .thenAccept(position -> {
+                if (position != null && !position.trim().isEmpty()) {
+                    currentPlayerPosition = position;
+                    logger.info("Updated currentPlayerPosition to: {} (attempt {}) for pick", position, attempt + 1);
+                    Platform.runLater(() -> {
+                        appendStatus("检测到分路位置: " + translatePosition(position));
+                        updatePositionStatusUI(position);
+                    });
+                    // 成功获取位置，继续执行pick逻辑
+                    proceedWithAutoPick(actionId, pickChampion);
+                } else {
+                    logger.debug("Position still empty/null for pick, attempt {}/3", attempt + 1);
+                    // 延迟后重试
+                    if (attempt < 2) {
+                        Platform.runLater(() -> {
+                            Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+                                tryGetPlayerPositionForPick(actionId, pickChampion, attempt + 1);
+                            }));
+                            timeline.play();
+                        });
+                    } else {
+                        logger.warn("Position still empty after {} attempts for pick, proceeding with global config", attempt + 1);
+                        proceedWithAutoPick(actionId, pickChampion);
+                    }
+                }
+            })
+            .exceptionally(throwable -> {
+                logger.warn("Failed to get player position for pick (attempt {}), retrying...", attempt + 1, throwable);
+                if (attempt < 2) {
+                    Platform.runLater(() -> {
+                        Timeline timeline = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+                            tryGetPlayerPositionForPick(actionId, pickChampion, attempt + 1);
+                        }));
+                        timeline.play();
+                    });
+                } else {
+                    logger.warn("Failed to get player position for pick after {} attempts, proceeding with global config", attempt + 1);
+                    proceedWithAutoPick(actionId, pickChampion);
+                }
+                return null;
+            });
+    }
+    
+    /**
+     * 继续执行自动pick逻辑
+     */
+    private void proceedWithAutoPick(int actionId, AutoAcceptConfig.ChampionInfo pickChampion) {
+        // 获取已ban和已pick英雄列表，用于智能选择可用英雄
+        CompletableFuture<Set<Integer>> bannedChampionsFuture = lcuMonitor.getBannedChampions();
+        CompletableFuture<Set<Integer>> pickedChampionsFuture = lcuMonitor.getPickedChampions();
+        
+        CompletableFuture.allOf(bannedChampionsFuture, pickedChampionsFuture)
+            .thenAccept(v -> {
+                Set<Integer> bannedChampions = bannedChampionsFuture.join();
+                Set<Integer> pickedChampions = pickedChampionsFuture.join();
+                logger.info("Currently banned champions: {}, picked champions: {}", bannedChampions, pickedChampions);
+                
+                // 选择可用的pick英雄
+                AutoAcceptConfig.ChampionInfo selectedPickChampion = selectAvailablePickChampion(pickChampion, bannedChampions, pickedChampions);
+                if (selectedPickChampion == null) {
+                    appendStatus("✗ 自动Pick失败：没有可用的英雄（所有英雄已被ban或pick）");
+                    processedActions.remove(actionId);
+                    return;
+                }
+                
+                // 使用智能时机管理器处理Pick操作
+                if (smartTimingManager != null && config.getChampionSelect().isSmartTimingEnabled()) {
+                    logger.info("Using smart timing for auto-pick action ID: {} with champion: {}", actionId, selectedPickChampion);
+                    appendStatus("智能Pick调度：" + selectedPickChampion.toString() + " (等待最佳时机)");
+                    
+                    smartTimingManager.handleSmartPick(actionId, selectedPickChampion, currentPlayerPosition);
+                } else {
+                    // 传统的立即执行方式
+                    logger.info("Executing immediate auto-pick for action ID: {} with champion: {}", actionId, selectedPickChampion);
+                    appendStatus("正在自动Pick英雄：" + selectedPickChampion.toString() + " (Action ID: " + actionId + ")");
+                    
+                    lcuMonitor.pickChampion(selectedPickChampion.getChampionId(), actionId)
+                        .thenAccept(success -> Platform.runLater(() -> {
+                            if (success) {
+                                appendStatus("✓ 成功Pick英雄：" + selectedPickChampion.toString());
+                                logger.info("Successfully picked champion for action ID: {}", actionId);
+                            } else {
+                                appendStatus("✗ Pick英雄失败：" + selectedPickChampion.toString());
+                                logger.warn("Failed to pick champion for action ID: {}", actionId);
+                                processedActions.remove(actionId); // 移除失败的action，允许重试
+                            }
+                        }))
+                        .exceptionally(throwable -> {
+                            Platform.runLater(() -> {
+                                appendStatus("✗ Pick英雄异常：" + throwable.getMessage());
+                                logger.error("Exception during pick for action ID: " + actionId, throwable);
+                                processedActions.remove(actionId); // 移除异常的action，允许重试
+                            });
+                            return null;
+                        });
+                }
+            })
+            .exceptionally(throwable -> {
+                logger.error("Failed to get banned/picked champions for pick", throwable);
+                // 如果获取失败，仍然使用原有逻辑执行
+                if (smartTimingManager != null && config.getChampionSelect().isSmartTimingEnabled()) {
+                    smartTimingManager.handleSmartPick(actionId, pickChampion, currentPlayerPosition);
+                } else {
+                    lcuMonitor.pickChampion(pickChampion.getChampionId(), actionId)
+                        .thenAccept(success -> Platform.runLater(() -> {
+                            if (success) {
+                                appendStatus("✓ 成功Pick英雄：" + pickChampion.toString());
+                            } else {
+                                appendStatus("✗ Pick英雄失败：" + pickChampion.toString());
+                            }
+                        }));
+                }
+                return null;
+            });
     }
     
     /**
@@ -763,14 +1546,15 @@ public class AutoAcceptController implements Initializable {
      * 翻译分路位置名称
      */
     private String translatePosition(String position) {
-        if (position == null) return "未知";
+        if (position == null) return languageManager.getString("common.unknown");
         
         switch (position.toLowerCase()) {
-            case "top": return "上路";
-            case "jungle": return "打野";
-            case "middle": return "中路";
-            case "bottom": return "下路ADC";
-            case "utility": return "辅助";
+            case "global": return languageManager.getString("position.global");
+            case "top": return languageManager.getString("position.top");
+            case "jungle": return languageManager.getString("position.jungle");
+            case "middle": return languageManager.getString("position.middle");
+            case "bottom": return languageManager.getString("position.bottom");
+            case "utility": return languageManager.getString("position.utility");
             default: return position;
         }
     }
@@ -789,13 +1573,17 @@ public class AutoAcceptController implements Initializable {
     private void saveConfiguration() {
         // 保存spinner的值
         config.setCheckIntervalMs(checkIntervalSpinner.getValue());
+        
+        // 保存简单延迟Ban的spinner值
+        if (simpleBanDelaySpinner != null && simpleBanDelaySpinner.getValue() != null) {
+            config.getChampionSelect().setSimpleBanDelaySeconds(simpleBanDelaySpinner.getValue());
+        }
+        
         config.save();
     }
     
     private void updateUI() {
-        // 允许在未连接时也可以设置英雄
-        selectBanChampionButton.setDisable(false);
-        selectPickChampionButton.setDisable(false);
+        // UI更新逻辑（如果需要的话）
     }
     
     // System Tray and Auto Start event handlers
@@ -931,24 +1719,42 @@ public class AutoAcceptController implements Initializable {
     }
     
     @FXML
-    private void onChineseSelected() {
-        languageManager.setLanguage(LanguageManager.Language.CHINESE);
-        appendStatus(languageManager.getString("common.language") + ": 中文");
+    private void onLanguageToggle() {
+        LanguageManager.Language nextLanguage = languageManager.switchToNextLanguage();
+        
+        // 更新按钮文本显示当前语言状态
+        updateLanguageButtonText(nextLanguage);
+        
+        // 更新界面文本
+        updateTexts();
+        
+        // 记录语言切换
+        appendStatus(languageManager.getString("common.language") + ": " + nextLanguage.getDisplayName());
         
         // 更新托盘菜单语言
         if (systemTrayManager != null) {
-            systemTrayManager.setLanguage(true);
+            boolean isChinese = nextLanguage == LanguageManager.Language.CHINESE;
+            systemTrayManager.setLanguage(isChinese);
         }
     }
     
-    @FXML
-    private void onEnglishSelected() {
-        languageManager.setLanguage(LanguageManager.Language.ENGLISH);
-        appendStatus(languageManager.getString("common.language") + ": English");
-        
-        // 更新托盘菜单语言
-        if (systemTrayManager != null) {
-            systemTrayManager.setLanguage(false);
+    /**
+     * 更新语言切换按钮的文本
+     */
+    private void updateLanguageButtonText(LanguageManager.Language currentLanguage) {
+        if (languageToggleButton != null) {
+            String buttonText;
+            switch (currentLanguage) {
+                case CHINESE:
+                    buttonText = "中→EN"; // 当前中文，提示可切换到英文
+                    break;
+                case ENGLISH:
+                    buttonText = "EN→中"; // 当前英文，提示可切换到中文
+                    break;
+                default:
+                    buttonText = "中→EN";
+            }
+            languageToggleButton.setText(buttonText);
         }
     }
     
@@ -983,9 +1789,6 @@ public class AutoAcceptController implements Initializable {
         if (autoConnectCheckBox != null) autoConnectCheckBox.setText(languageManager.getString("autoConnect.autoConnect"));
         if (autoReconnectCheckBox != null) autoReconnectCheckBox.setText(languageManager.getString("autoConnect.autoReconnect"));
         
-        // Update other buttons (with null checks)
-        if (selectBanChampionButton != null) selectBanChampionButton.setText(languageManager.getString("button.select"));
-        if (selectPickChampionButton != null) selectPickChampionButton.setText(languageManager.getString("button.select"));
         
         // Update settings checkboxes (with null checks)
         if (systemTrayCheckBox != null) systemTrayCheckBox.setText(languageManager.getString("settings.systemTray"));
@@ -997,8 +1800,8 @@ public class AutoAcceptController implements Initializable {
         if (suppressBanPhaseCheckBox != null) suppressBanPhaseCheckBox.setText(languageManager.getString("popupSuppression.banPhase"));
         if (suppressPickPhaseCheckBox != null) suppressPickPhaseCheckBox.setText(languageManager.getString("popupSuppression.pickPhase"));
         
-        // Update language menu (with null checks)
-        if (languageMenuButton != null) languageMenuButton.setText(languageManager.getString("settings.language"));
+        // Update language toggle button (with null checks)
+        updateLanguageButtonText(languageManager.getCurrentLanguage());
         
         // Update status text area prompt (with null checks)
         if (statusTextArea != null) statusTextArea.setPromptText(languageManager.getString("status.placeholder"));
@@ -1314,6 +2117,9 @@ public class AutoAcceptController implements Initializable {
                 AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(selectedPosition);
                 updatePositionPreview(positionConfig);
             }
+            
+            // 更新队列状态显示
+            updateQueueStatusDisplay();
         }
     }
     
@@ -1407,11 +2213,18 @@ public class AutoAcceptController implements Initializable {
             }
             
             if (preferredBan != null) {
+                // 记录应用前的状态
+                AutoAcceptConfig.ChampionInfo previousBan = config.getChampionSelect().getBanChampion();
+                logger.info("Applying position presets - Previous ban: {}, New ban for position {}: {}", 
+                           previousBan, position, preferredBan);
+                
                 // 确保championId有效
                 preferredBan.ensureChampionId();
                 config.getChampionSelect().setBanChampion(preferredBan);
-                banChampionLabel.setText(preferredBan.toString());
-                loadChampionAvatar(banChampionAvatar, preferredBan.getKey());
+                
+                // 验证设置是否成功
+                AutoAcceptConfig.ChampionInfo verifyBan = config.getChampionSelect().getBanChampion();
+                logger.info("Position preset applied - Verification: ban champion is now {}", verifyBan);
                 logger.info("Applied position-based ban champion {} for position {}", preferredBan, position);
             }
             
@@ -1425,8 +2238,6 @@ public class AutoAcceptController implements Initializable {
                 // 确保championId有效
                 preferredPick.ensureChampionId();
                 config.getChampionSelect().setPickChampion(preferredPick);
-                pickChampionLabel.setText(preferredPick.toString());
-                loadChampionAvatar(pickChampionAvatar, preferredPick.getKey());
                 logger.info("Applied position-based pick champion {} for position {}", preferredPick, position);
             }
             

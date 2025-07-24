@@ -47,9 +47,13 @@ public class AutoAcceptConfig {
         
         // 新增：智能时机控制
         private boolean smartTimingEnabled = true; // 启用智能时机控制
-        private int banExecutionDelaySeconds = 1; // Ban阶段剩余秒数时执行
+        private int banExecutionDelaySeconds = 3; // Ban阶段剩余秒数时执行
         private int pickExecutionDelaySeconds = 2; // Pick阶段剩余秒数时执行
         private boolean enableHover = true; // 启用hover预选
+        
+        // 新增：简单延迟执行选项
+        private boolean useSimpleDelayBan = true; // 使用简单延迟执行ban（默认启用）
+        private int simpleBanDelaySeconds = 25; // 简单延迟执行时间（默认25秒）
         
         // 新增：分路配置
         private boolean usePositionBasedSelection = false; // 启用基于分路的选择
@@ -66,44 +70,88 @@ public class AutoAcceptConfig {
         }
         
         private void initializeDefaultPositionConfigs() {
+            // Global configuration - applies to all positions
+            PositionConfig globalConfig = new PositionConfig("global");
+            globalConfig.addBanChampion(new ChampionInfo("Yasuo", "亚索", "疾风剑豪"));
+            globalConfig.addBanChampion(new ChampionInfo("Zed", "劫", "影流之主"));
+            globalConfig.addBanChampion(new ChampionInfo("Katarina", "卡特琳娜", "不祥之刃"));
+            globalConfig.addBanChampion(new ChampionInfo("Akali", "阿卡丽", "离群之刺"));
+            globalConfig.addBanChampion(new ChampionInfo("Darius", "德莱厄斯", "诺克萨斯之手"));
+            globalConfig.addPickChampion(new ChampionInfo("Garen", "盖伦", "德玛西亚之力"));
+            globalConfig.addPickChampion(new ChampionInfo("Annie", "安妮", "黑暗之女"));
+            globalConfig.addPickChampion(new ChampionInfo("Ashe", "艾希", "寒冰射手"));
+            globalConfig.addPickChampion(new ChampionInfo("Soraka", "索拉卡", "众星之子"));
+            globalConfig.addPickChampion(new ChampionInfo("Warwick", "沃里克", "祖安怒兽"));
+            positionConfigs.put("global", globalConfig);
+            
             // Top lane
             PositionConfig topConfig = new PositionConfig("top");
             topConfig.addBanChampion(new ChampionInfo("Darius", "德莱厄斯", "诺克萨斯之手"));
             topConfig.addBanChampion(new ChampionInfo("Garen", "盖伦", "德玛西亚之力"));
+            topConfig.addBanChampion(new ChampionInfo("Fiora", "菲奥娜", "无双剑姬"));
+            topConfig.addBanChampion(new ChampionInfo("Camille", "卡密尔", "青钢影"));
+            topConfig.addBanChampion(new ChampionInfo("Riven", "锐雯", "放逐之刃"));
             topConfig.addPickChampion(new ChampionInfo("Garen", "盖伦", "德玛西亚之力"));
             topConfig.addPickChampion(new ChampionInfo("Malphite", "墨菲特", "熔岩巨兽"));
+            topConfig.addPickChampion(new ChampionInfo("Ornn", "奥恩", "山隐之焰"));
+            topConfig.addPickChampion(new ChampionInfo("Shen", "慎", "暮光之眼"));
+            topConfig.addPickChampion(new ChampionInfo("Maokai", "茂凯", "扭曲树精"));
             positionConfigs.put("top", topConfig);
             
             // Jungle
             PositionConfig jungleConfig = new PositionConfig("jungle");
             jungleConfig.addBanChampion(new ChampionInfo("Graves", "格雷福斯", "法外狂徒"));
             jungleConfig.addBanChampion(new ChampionInfo("Ekko", "艾克", "时间刺客"));
+            jungleConfig.addBanChampion(new ChampionInfo("Kindred", "千珏", "永猎双子"));
+            jungleConfig.addBanChampion(new ChampionInfo("Lillia", "莉莉娅", "含羞蓓蕾"));
+            jungleConfig.addBanChampion(new ChampionInfo("Hecarim", "赫卡里姆", "战争之影"));
             jungleConfig.addPickChampion(new ChampionInfo("Graves", "格雷福斯", "法外狂徒"));
             jungleConfig.addPickChampion(new ChampionInfo("Warwick", "沃里克", "祖安怒兽"));
+            jungleConfig.addPickChampion(new ChampionInfo("Sejuani", "瑟庄妮", "北地之怒"));
+            jungleConfig.addPickChampion(new ChampionInfo("JarvanIV", "嘉文四世", "德玛西亚皇子"));
+            jungleConfig.addPickChampion(new ChampionInfo("Ammu", "阿木木", "殇之木乃伊"));
             positionConfigs.put("jungle", jungleConfig);
             
             // Middle
             PositionConfig midConfig = new PositionConfig("middle");
             midConfig.addBanChampion(new ChampionInfo("Yasuo", "亚索", "疾风剑豪"));
             midConfig.addBanChampion(new ChampionInfo("Zed", "劫", "影流之主"));
+            midConfig.addBanChampion(new ChampionInfo("Katarina", "卡特琳娜", "不祥之刃"));
+            midConfig.addBanChampion(new ChampionInfo("Akali", "阿卡丽", "离群之刺"));
+            midConfig.addBanChampion(new ChampionInfo("Yone", "永恩", "封尘绝念"));
             midConfig.addPickChampion(new ChampionInfo("Annie", "安妮", "黑暗之女"));
             midConfig.addPickChampion(new ChampionInfo("Malzahar", "玛尔扎哈", "虚空先知"));
+            midConfig.addPickChampion(new ChampionInfo("Orianna", "奥莉安娜", "发条魔灵"));
+            midConfig.addPickChampion(new ChampionInfo("Lux", "拉克丝", "光辉女郎"));
+            midConfig.addPickChampion(new ChampionInfo("Viktor", "维克托", "机械先驱"));
             positionConfigs.put("middle", midConfig);
             
             // Bottom ADC
             PositionConfig botConfig = new PositionConfig("bottom");
             botConfig.addBanChampion(new ChampionInfo("Draven", "德莱文", "荣耀行刑官"));
             botConfig.addBanChampion(new ChampionInfo("Vayne", "薇恩", "暗夜猎手"));
+            botConfig.addBanChampion(new ChampionInfo("Jinx", "金克丝", "暴走萝莉"));
+            botConfig.addBanChampion(new ChampionInfo("Caitlyn", "凯特琳", "皮城女警"));
+            botConfig.addBanChampion(new ChampionInfo("Kaisa", "卡莎", "虚空之女"));
             botConfig.addPickChampion(new ChampionInfo("Jinx", "金克丝", "暴走萝莉"));
             botConfig.addPickChampion(new ChampionInfo("Ashe", "艾希", "寒冰射手"));
+            botConfig.addPickChampion(new ChampionInfo("Ezreal", "伊泽瑞尔", "探险家"));
+            botConfig.addPickChampion(new ChampionInfo("MissFortune", "厄运小姐", "赏金猎人"));
+            botConfig.addPickChampion(new ChampionInfo("Sivir", "希维尔", "战争女神"));
             positionConfigs.put("bottom", botConfig);
             
             // Support
             PositionConfig supportConfig = new PositionConfig("utility");
             supportConfig.addBanChampion(new ChampionInfo("Thresh", "锤石", "魂锁典狱长"));
             supportConfig.addBanChampion(new ChampionInfo("Blitzcrank", "布里茨", "蒸汽机器人"));
+            supportConfig.addBanChampion(new ChampionInfo("Pyke", "派克", "血港鬼影"));
+            supportConfig.addBanChampion(new ChampionInfo("Leona", "蕾欧娜", "曙光女神"));
+            supportConfig.addBanChampion(new ChampionInfo("Nautilus", "诺提勒斯", "深海泰坦"));
             supportConfig.addPickChampion(new ChampionInfo("Soraka", "索拉卡", "众星之子"));
             supportConfig.addPickChampion(new ChampionInfo("Janna", "迦娜", "风暴之怒"));
+            supportConfig.addPickChampion(new ChampionInfo("Lulu", "璐璐", "仙灵女巫"));
+            supportConfig.addPickChampion(new ChampionInfo("Braum", "布隆", "弗雷尔卓德之心"));
+            supportConfig.addPickChampion(new ChampionInfo("Alistar", "阿利斯塔", "牛头酋长"));
             positionConfigs.put("utility", supportConfig);
         }
         
@@ -137,6 +185,14 @@ public class AutoAcceptConfig {
         public boolean isEnableHover() { return enableHover; }
         public void setEnableHover(boolean enableHover) { this.enableHover = enableHover; }
         
+        public boolean isUseSimpleDelayBan() { return useSimpleDelayBan; }
+        public void setUseSimpleDelayBan(boolean useSimpleDelayBan) { this.useSimpleDelayBan = useSimpleDelayBan; }
+        
+        public int getSimpleBanDelaySeconds() { return simpleBanDelaySeconds; }
+        public void setSimpleBanDelaySeconds(int simpleBanDelaySeconds) { 
+            this.simpleBanDelaySeconds = Math.max(1, Math.min(60, simpleBanDelaySeconds)); 
+        }
+        
         // 分路配置相关
         public boolean isUsePositionBasedSelection() { return usePositionBasedSelection; }
         public void setUsePositionBasedSelection(boolean usePositionBasedSelection) { this.usePositionBasedSelection = usePositionBasedSelection; }
@@ -156,6 +212,8 @@ public class AutoAcceptConfig {
         private String position;
         private List<ChampionInfo> banChampions = new ArrayList<>();
         private List<ChampionInfo> pickChampions = new ArrayList<>();
+        private ChampionInfo preferredBanChampion;
+        private ChampionInfo preferredPickChampion;
         
         public PositionConfig() {}
         
@@ -172,10 +230,20 @@ public class AutoAcceptConfig {
         }
         
         public ChampionInfo getPreferredBanChampion() {
+            // 优先返回明确设置的首选英雄
+            if (preferredBanChampion != null) {
+                return preferredBanChampion;
+            }
+            // 否则返回列表中的第一个
             return banChampions.isEmpty() ? null : banChampions.get(0);
         }
         
         public ChampionInfo getPreferredPickChampion() {
+            // 优先返回明确设置的首选英雄
+            if (preferredPickChampion != null) {
+                return preferredPickChampion;
+            }
+            // 否则返回列表中的第一个
             return pickChampions.isEmpty() ? null : pickChampions.get(0);
         }
         
@@ -209,6 +277,9 @@ public class AutoAcceptConfig {
         
         public List<ChampionInfo> getPickChampions() { return pickChampions; }
         public void setPickChampions(List<ChampionInfo> pickChampions) { this.pickChampions = pickChampions; }
+        
+        public void setPreferredBanChampion(ChampionInfo preferredBanChampion) { this.preferredBanChampion = preferredBanChampion; }
+        public void setPreferredPickChampion(ChampionInfo preferredPickChampion) { this.preferredPickChampion = preferredPickChampion; }
     }
     
     public static class ChampionInfo {

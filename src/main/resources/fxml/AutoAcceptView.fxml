@@ -26,6 +26,7 @@
             </Label>
             <Region HBox.hgrow="ALWAYS" />
             <Label fx:id="connectionStatusLabel" text="未连接" styleClass="status-small" />
+            <Button fx:id="languageToggleButton" onAction="#onLanguageToggle" text="中→EN" styleClass="secondary-button" />
             <Button fx:id="connectButton" onAction="#onConnectClicked" text="连接" styleClass="primary-button" />
             <Button fx:id="disconnectButton" disable="true" onAction="#onDisconnectClicked" text="断开" />
          </children>
@@ -111,17 +112,37 @@
                               <VBox spacing="5.0">
                                  <children>
                                     <CheckBox fx:id="autoBanCheckBox" onAction="#onAutoBanToggled" text="自动Ban英雄" />
-                                    <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                    <!-- Ban队列状态显示 -->
+                                    <VBox fx:id="banQueueStatus" spacing="3.0" visible="false">
                                        <padding>
                                           <Insets left="20.0" />
                                        </padding>
                                        <children>
-                                          <ImageView fx:id="banChampionAvatar" fitHeight="36.0" fitWidth="36.0" pickOnBounds="true" preserveRatio="true" />
-                                          <Label fx:id="banChampionLabel" text="未选择" wrapText="true" maxWidth="200.0" />
-                                          <Region HBox.hgrow="ALWAYS" />
-                                          <Button fx:id="selectBanChampionButton" onAction="#onSelectBanChampionClicked" text="选择英雄" />
+                                          <Label fx:id="banQueueLabel" text="队列状态: " styleClass="hint-small" />
+                                          <HBox fx:id="banQueuePreview" spacing="5.0" alignment="CENTER_LEFT">
+                                             <children>
+                                                <!-- 动态添加的队列预览项 -->
+                                             </children>
+                                          </HBox>
                                        </children>
-                                    </HBox>
+                                    </VBox>
+                                    <!-- Ban执行模式设置 -->
+                                    <VBox spacing="3.0">
+                                       <padding>
+                                          <Insets left="20.0" />
+                                       </padding>
+                                       <children>
+                                          <Label text="Ban执行模式：" styleClass="hint-small" />
+                                          <HBox spacing="10.0" alignment="CENTER_LEFT">
+                                             <children>
+                                                <CheckBox fx:id="useSimpleDelayBanCheckBox" onAction="#onUseSimpleDelayBanToggled" text="简单延迟执行" />
+                                                <Label text="延迟时间:" />
+                                                <Spinner fx:id="simpleBanDelaySpinner" editable="true" prefWidth="80.0" />
+                                                <Label text="秒" />
+                                             </children>
+                                          </HBox>
+                                       </children>
+                                    </VBox>
                                  </children>
                               </VBox>
                               
@@ -131,17 +152,20 @@
                               <VBox spacing="5.0">
                                  <children>
                                     <CheckBox fx:id="autoPickCheckBox" onAction="#onAutoPickToggled" text="自动Pick英雄" />
-                                    <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                    <!-- Pick队列状态显示 -->
+                                    <VBox fx:id="pickQueueStatus" spacing="3.0" visible="false">
                                        <padding>
                                           <Insets left="20.0" />
                                        </padding>
                                        <children>
-                                          <ImageView fx:id="pickChampionAvatar" fitHeight="36.0" fitWidth="36.0" pickOnBounds="true" preserveRatio="true" />
-                                          <Label fx:id="pickChampionLabel" text="未选择" wrapText="true" maxWidth="200.0" />
-                                          <Region HBox.hgrow="ALWAYS" />
-                                          <Button fx:id="selectPickChampionButton" onAction="#onSelectPickChampionClicked" text="选择英雄" />
+                                          <Label fx:id="pickQueueLabel" text="队列状态: " styleClass="hint-small" />
+                                          <HBox fx:id="pickQueuePreview" spacing="5.0" alignment="CENTER_LEFT">
+                                             <children>
+                                                <!-- 动态添加的队列预览项 -->
+                                             </children>
+                                          </HBox>
                                        </children>
-                                    </HBox>
+                                    </VBox>
                                  </children>
                               </VBox>
                            </children>
@@ -213,17 +237,6 @@
                            </children>
                         </VBox>
                         
-                        <!-- 语言设置 -->
-                        <HBox alignment="CENTER_RIGHT">
-                           <children>
-                              <MenuButton fx:id="languageMenuButton" text="语言" styleClass="secondary-button">
-                                 <items>
-                                    <MenuItem fx:id="chineseMenuItem" text="中文" onAction="#onChineseSelected" />
-                                    <MenuItem fx:id="englishMenuItem" text="English" onAction="#onEnglishSelected" />
-                                 </items>
-                              </MenuButton>
-                           </children>
-                        </HBox>
                      </children>
                   </VBox>
                </content>

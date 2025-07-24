@@ -18,6 +18,7 @@ public class LanguageManager {
     private static LanguageManager instance;
     private ResourceBundle currentBundle;
     private final ObjectProperty<Locale> currentLocale = new SimpleObjectProperty<>();
+    private Language currentLanguageMode = Language.CHINESE; // 跟踪当前语言模式
     private final Map<String, Locale> supportedLocales;
     
     public enum Language {
@@ -46,13 +47,14 @@ public class LanguageManager {
         supportedLocales.put("中文", Locale.CHINA);
         supportedLocales.put("English", Locale.US);
         
+        
         // Load saved language preference
-        Locale savedLocale = loadLanguagePreference();
-        if (savedLocale != null) {
-            setLanguage(savedLocale);
+        Language savedLanguageMode = loadLanguagePreference();
+        if (savedLanguageMode != null) {
+            setLanguageMode(savedLanguageMode);
         } else {
             // Default to Chinese
-            setLanguage(Locale.CHINA);
+            setLanguageMode(Language.CHINESE);
         }
     }
     
@@ -85,6 +87,15 @@ public class LanguageManager {
         setLanguage(language.getLocale());
     }
     
+    /**
+     * 设置语言模式（包括双语模式）
+     */
+    public void setLanguageMode(Language languageMode) {
+        this.currentLanguageMode = languageMode;
+        setLanguage(languageMode.getLocale());
+        saveLanguagePreference(languageMode);
+    }
+    
     public String getString(String key) {
         try {
             return currentBundle.getString(key);
@@ -93,6 +104,7 @@ public class LanguageManager {
             return key; // Return the key itself as fallback
         }
     }
+    
     
     public Locale getCurrentLocale() {
         return currentLocale.get();
@@ -103,13 +115,18 @@ public class LanguageManager {
     }
     
     public Language getCurrentLanguage() {
-        Locale locale = getCurrentLocale();
-        for (Language lang : Language.values()) {
-            if (lang.getLocale().equals(locale)) {
-                return lang;
-            }
-        }
-        return Language.CHINESE; // Default
+        return currentLanguageMode;
+    }
+    
+    /**
+     * 切换到下一个语言模式（在中文和英文之间切换）
+     */
+    public Language switchToNextLanguage() {
+        Language nextLanguage = (currentLanguageMode == Language.CHINESE) ? 
+            Language.ENGLISH : Language.CHINESE;
+        
+        setLanguageMode(nextLanguage);
+        return nextLanguage;
     }
     
     public Map<String, Locale> getSupportedLocales() {
@@ -117,6 +134,7 @@ public class LanguageManager {
     }
     
     private void saveLanguagePreference(Locale locale) {
+        // 保持现有方法以向后兼容
         Properties props = new Properties();
         props.setProperty("language", locale.getLanguage());
         props.setProperty("country", locale.getCountry());
@@ -129,7 +147,74 @@ public class LanguageManager {
         }
     }
     
-    private Locale loadLanguagePreference() {
+    /**
+     * 保存语言模式偏好设置
+     */
+    private void saveLanguagePreference(Language languageMode) {
+        Properties props = new Properties();
+        props.setProperty("languageMode", languageMode.name());
+        
+        // 保存locale信息
+        Locale locale = languageMode.getLocale();
+        props.setProperty("language", locale.getLanguage());
+        props.setProperty("country", locale.getCountry());
+        
+        try (FileOutputStream out = new FileOutputStream(DEFAULT_LANGUAGE_FILE)) {
+            props.store(out, "Language Preference");
+            logger.info("Language mode preference saved: {}", languageMode);
+        } catch (IOException e) {
+            logger.error("Failed to save language mode preference", e);
+        }
+    }
+    
+    /**
+     * 加载语言模式偏好设置（新版本）
+     */
+    private Language loadLanguagePreference() {
+        File file = new File(DEFAULT_LANGUAGE_FILE);
+        if (!file.exists()) {
+            return null;
+        }
+        
+        Properties props = new Properties();
+        try (FileInputStream in = new FileInputStream(file)) {
+            props.load(in);
+            
+            // 优先尝试加载语言模式设置
+            String languageMode = props.getProperty("languageMode");
+            if (languageMode != null) {
+                try {
+                    Language lang = Language.valueOf(languageMode);
+                    logger.info("Loaded language mode preference: {}", lang);
+                    return lang;
+                } catch (IllegalArgumentException e) {
+                    logger.warn("Invalid language mode: {}, falling back to locale-based loading", languageMode);
+                }
+            }
+            
+            // 向后兼容：如果没有语言模式设置，尝试从locale加载
+            String language = props.getProperty("language");
+            String country = props.getProperty("country");
+            if (language != null && country != null) {
+                Locale locale = Locale.forLanguageTag(language + "-" + country);
+                // 将locale转换为Language枚举
+                for (Language lang : Language.values()) {
+                    if (lang.getLocale() != null && lang.getLocale().equals(locale)) {
+                        logger.info("Loaded language preference from locale: {}", lang);
+                        return lang;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            logger.error("Failed to load language preference", e);
+        }
+        return null;
+    }
+    
+    /**
+     * 加载Locale偏好设置（保留用于向后兼容）
+     */
+    private Locale loadLocalePreference() {
         File file = new File(DEFAULT_LANGUAGE_FILE);
         if (!file.exists()) {
             return null;
@@ -142,11 +227,11 @@ public class LanguageManager {
             String country = props.getProperty("country");
             if (language != null && country != null) {
                 Locale locale = Locale.forLanguageTag(language + "-" + country);
-                logger.info("Loaded language preference: {}", locale);
+                logger.info("Loaded locale preference: {}", locale);
                 return locale;
             }
         } catch (IOException e) {
-            logger.error("Failed to load language preference", e);
+            logger.error("Failed to load locale preference", e);
         }
         return null;
     }
