@@ -2,6 +2,7 @@ package com.lol.championselector.manager;
 
 import com.lol.championselector.config.AutoAcceptConfig;
 import com.lol.championselector.lcu.LCUMonitor;
+import com.lol.championselector.util.ExceptionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +30,7 @@ public class SmartTimingManager {
     public SmartTimingManager(LCUMonitor lcuMonitor, AutoAcceptConfig config) {
         this.lcuMonitor = lcuMonitor;
         this.config = config;
-        this.scheduler = Executors.newScheduledThreadPool(2);
+        this.scheduler = ResourceManager.getInstance().createScheduledExecutor("SmartTiming", 2);
     }
     
     /**
@@ -43,7 +44,12 @@ public class SmartTimingManager {
         logger.info("SmartTimingManager started");
         
         // 每500ms检查一次待处理的actions
-        scheduler.scheduleWithFixedDelay(this::processPendingActions, 500, 500, TimeUnit.MILLISECONDS);
+        scheduler.scheduleWithFixedDelay(() -> {
+            ExceptionHandler.executeWithLogging(
+                this::processPendingActions, 
+                "SmartTimingManager.processPendingActions"
+            );
+        }, 500, 500, TimeUnit.MILLISECONDS);
     }
     
     /**

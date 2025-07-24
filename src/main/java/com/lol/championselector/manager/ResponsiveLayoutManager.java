@@ -14,13 +14,27 @@ import java.util.List;
 public class ResponsiveLayoutManager {
     private static final Logger logger = LoggerFactory.getLogger(ResponsiveLayoutManager.class);
     
-    private static final int MIN_COLUMNS = 3;
+    private static final int MIN_COLUMNS = 2;
     private static final int MAX_COLUMNS = 12;
-    private static final int BUTTON_WIDTH_WITH_SPACING = 130; // 120px button + 10px spacing
+    private static final int BUTTON_WIDTH_WITH_SPACING = 110; // 100px button + 10px spacing
     private static final int WINDOW_MARGIN = 60; // scrollbar and margins
     
     public int calculateOptimalColumns(double windowWidth) {
+        // 检查窗口宽度的有效性
+        if (windowWidth <= 0 || Double.isNaN(windowWidth) || Double.isInfinite(windowWidth)) {
+            logger.warn("Invalid window width ({}), using default 6 columns", windowWidth);
+            return 6; // 返回合理的默认列数
+        }
+        
         double availableWidth = windowWidth - WINDOW_MARGIN;
+        
+        // 确保至少能容纳一个按钮
+        if (availableWidth < BUTTON_WIDTH_WITH_SPACING) {
+            logger.debug("Window too narrow (available: {}px, required: {}px), using minimum 2 columns", 
+                        availableWidth, BUTTON_WIDTH_WITH_SPACING);
+            return 2; // 即使窗口很小，至少使用2列避免过长的垂直列表
+        }
+        
         int calculatedColumns = (int) (availableWidth / BUTTON_WIDTH_WITH_SPACING);
         int optimalColumns = Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, calculatedColumns));
         

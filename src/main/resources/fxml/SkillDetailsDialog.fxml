@@ -24,7 +24,7 @@
       </HBox>
       
       <!-- Skills Content -->
-      <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="skills-scroll">
+      <ScrollPane fx:id="skillsScrollPane" fitToWidth="true" VBox.vgrow="ALWAYS" styleClass="skills-scroll">
          <content>
             <VBox fx:id="skillsContainer" spacing="8.0" styleClass="skills-container">
                <padding>

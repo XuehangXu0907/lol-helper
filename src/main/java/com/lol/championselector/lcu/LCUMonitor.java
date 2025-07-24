@@ -15,14 +15,27 @@ import java.util.HashSet;
 public class LCUMonitor {
     private static final Logger logger = LoggerFactory.getLogger(LCUMonitor.class);
     
+    // Smart polling intervals - adaptive based on game phase
+    private static final long PHASE_CHECK_INTERVAL_NORMAL = 2000; // 2 seconds during normal phases
+    private static final long PHASE_CHECK_INTERVAL_ACTIVE = 1000; // 1 second during active phases
+    private static final long READY_CHECK_INTERVAL = 300; // 300ms during ready check
+    private static final long CHAMP_SELECT_INTERVAL = 500; // 500ms during champion select
+    private static final long IDLE_INTERVAL = 5000; // 5 seconds when idle
+    
     private LCUConnection connection;
     private ScheduledExecutorService scheduler;
     private boolean isMonitoring = false;
+    private volatile boolean isShuttingDown = false;
     
     private GamePhase currentPhase = GamePhase.NONE;
     private boolean isInReadyCheck = false;
     private String currentMatchId = null;
     private String lastChampSelectSession = null;
+    
+    // Smart polling management
+    private long lastPhaseChangeTime = System.currentTimeMillis();
+    private int consecutiveFailures = 0;
+    private static final int MAX_CONSECUTIVE_FAILURES = 3;
     
     // 回调函数
     private Consumer<GamePhase> onPhaseChanged;
@@ -31,7 +44,11 @@ public class LCUMonitor {
     private Consumer<JsonNode> onChampSelectSessionChanged;
     
     public LCUMonitor() {
-        this.scheduler = Executors.newScheduledThreadPool(2);
+        this.scheduler = Executors.newScheduledThreadPool(2, r -> {
+            Thread t = new Thread(r, "LCUMonitor-" + System.currentTimeMillis());
+            t.setDaemon(true); // Set as daemon thread to prevent hanging shutdown
+            return t;
+        });
     }
     
     public CompletableFuture<Boolean> connect() {
@@ -54,21 +71,22 @@ public class LCUMonitor {
     }
     
     public void startMonitoring() {
-        if (isMonitoring || connection == null) {
+        if (isMonitoring || connection == null || isShuttingDown) {
             return;
         }
         
         isMonitoring = true;
-        logger.info("Started LCU monitoring");
+        consecutiveFailures = 0;
+        logger.info("Started LCU monitoring with smart polling intervals");
         
-        // 监控游戏阶段
-        scheduler.scheduleWithFixedDelay(this::checkGamePhase, 0, 1, TimeUnit.SECONDS);
+        // 智能监控游戏阶段 - 使用自适应间隔
+        scheduleSmartPhaseCheck();
         
-        // 监控准备检查
-        scheduler.scheduleWithFixedDelay(this::checkReadyCheck, 0, 500, TimeUnit.MILLISECONDS);
+        // 监控准备检查 - 仅在READY_CHECK阶段运行
+        scheduleReadyCheckMonitoring();
         
-        // 监控英雄选择 - 使用更高频率以提高响应速度
-        scheduler.scheduleWithFixedDelay(this::checkChampSelect, 0, 500, TimeUnit.MILLISECONDS);
+        // 监控英雄选择 - 仅在CHAMP_SELECT阶段运行
+        scheduleChampSelectMonitoring();
     }
     
     public void stopMonitoring() {
@@ -76,39 +94,152 @@ public class LCUMonitor {
         logger.info("Stopped LCU monitoring");
     }
     
+    private void scheduleSmartPhaseCheck() {
+        if (!isMonitoring || isShuttingDown) {
+            return;
+        }
+        
+        scheduler.schedule(() -> {
+            if (!isMonitoring || isShuttingDown) {
+                return;
+            }
+            
+            checkGamePhase();
+            
+            // Adjust interval based on current phase and recent activity
+            long interval = calculatePhaseCheckInterval();
+            
+            // Schedule next check with calculated interval
+            scheduleSmartPhaseCheck();
+        }, calculatePhaseCheckInterval(), TimeUnit.MILLISECONDS);
+    }
+    
+    private void scheduleReadyCheckMonitoring() {
+        if (!isMonitoring || isShuttingDown) {
+            return;
+        }
+        
+        scheduler.schedule(() -> {
+            if (!isMonitoring || isShuttingDown) {
+                return;
+            }
+            
+            if (currentPhase == GamePhase.READY_CHECK) {
+                checkReadyCheck();
+                // Continue monitoring during ready check
+                scheduleReadyCheckMonitoring();
+            } else {
+                // If not in ready check, schedule a longer interval to check again
+                scheduler.schedule(this::scheduleReadyCheckMonitoring, IDLE_INTERVAL, TimeUnit.MILLISECONDS);
+            }
+        }, currentPhase == GamePhase.READY_CHECK ? READY_CHECK_INTERVAL : IDLE_INTERVAL, TimeUnit.MILLISECONDS);
+    }
+    
+    private void scheduleChampSelectMonitoring() {
+        if (!isMonitoring || isShuttingDown) {
+            return;
+        }
+        
+        scheduler.schedule(() -> {
+            if (!isMonitoring || isShuttingDown) {
+                return;
+            }
+            
+            if (currentPhase == GamePhase.CHAMP_SELECT) {
+                checkChampSelect();
+                // Continue monitoring during champion select
+                scheduleChampSelectMonitoring();
+            } else {
+                // If not in champion select, schedule a longer interval to check again
+                scheduler.schedule(this::scheduleChampSelectMonitoring, IDLE_INTERVAL, TimeUnit.MILLISECONDS);
+            }
+        }, currentPhase == GamePhase.CHAMP_SELECT ? CHAMP_SELECT_INTERVAL : IDLE_INTERVAL, TimeUnit.MILLISECONDS);
+    }
+    
+    private long calculatePhaseCheckInterval() {
+        long timeSinceLastChange = System.currentTimeMillis() - lastPhaseChangeTime;
+        
+        // If we have consecutive failures, increase interval to reduce load
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            return IDLE_INTERVAL;
+        }
+        
+        // Use faster polling during active phases
+        if (currentPhase == GamePhase.READY_CHECK || currentPhase == GamePhase.CHAMP_SELECT) {
+            return PHASE_CHECK_INTERVAL_ACTIVE;
+        }
+        
+        // If recent phase change, use faster polling for a while
+        if (timeSinceLastChange < 30000) { // 30 seconds
+            return PHASE_CHECK_INTERVAL_ACTIVE;
+        }
+        
+        // Default to normal interval
+        return PHASE_CHECK_INTERVAL_NORMAL;
+    }
+    
     private void checkGamePhase() {
-        if (!isMonitoring || connection == null) {
+        if (!isMonitoring || connection == null || isShuttingDown) {
             return;
         }
         
         connection.get("/lol-gameflow/v1/gameflow-phase")
             .thenAccept(response -> {
+                if (isShuttingDown) {
+                    return;
+                }
+                
                 if (response != null && response.isTextual()) {
                     GamePhase newPhase = GamePhase.fromLcuName(response.asText());
                     if (newPhase != currentPhase) {
                         GamePhase oldPhase = currentPhase;
                         currentPhase = newPhase;
-                        logger.debug("Game phase changed: {} -> {}", oldPhase, newPhase);
+                        lastPhaseChangeTime = System.currentTimeMillis();
+                        consecutiveFailures = 0; // Reset failure count on success
+                        
+                        logger.info("Game phase changed: {} -> {} (smart polling adjusted)", oldPhase, newPhase);
                         
                         if (onPhaseChanged != null) {
-                            onPhaseChanged.accept(newPhase);
+                            try {
+                                onPhaseChanged.accept(newPhase);
+                            } catch (Exception e) {
+                                logger.error("Error in phase change callback", e);
+                            }
                         }
+                    } else {
+                        consecutiveFailures = 0; // Reset on successful response
+                    }
+                } else {
+                    consecutiveFailures++;
+                    if (consecutiveFailures <= MAX_CONSECUTIVE_FAILURES) {
+                        logger.debug("Empty response for game phase check (attempt {})", consecutiveFailures);
                     }
                 }
             })
             .exceptionally(throwable -> {
-                logger.debug("Failed to get game phase", throwable);
+                if (!isShuttingDown) {
+                    consecutiveFailures++;
+                    if (consecutiveFailures <= MAX_CONSECUTIVE_FAILURES) {
+                        logger.debug("Failed to get game phase (attempt {}): {}", consecutiveFailures, throwable.getMessage());
+                    } else {
+                        logger.warn("Persistent failures getting game phase, reducing polling frequency");
+                    }
+                }
                 return null;
             });
     }
     
     private void checkReadyCheck() {
-        if (!isMonitoring || connection == null || currentPhase != GamePhase.READY_CHECK) {
+        if (!isMonitoring || connection == null || currentPhase != GamePhase.READY_CHECK || isShuttingDown) {
             return;
         }
         
         connection.get("/lol-matchmaking/v1/ready-check")
             .thenAccept(response -> {
+                if (isShuttingDown) {
+                    return;
+                }
+                
                 if (response != null && !response.isMissingNode()) {
                     String state = response.path("state").asText("");
                     boolean inReadyCheck = "InProgress".equals(state);
@@ -118,21 +249,31 @@ public class LCUMonitor {
                         logger.debug("Ready check state changed: {}", inReadyCheck);
                         
                         if (onReadyCheckChanged != null) {
-                            onReadyCheckChanged.accept(inReadyCheck);
+                            try {
+                                onReadyCheckChanged.accept(inReadyCheck);
+                            } catch (Exception e) {
+                                logger.error("Error in ready check callback", e);
+                            }
                         }
                     }
                 }
             })
             .exceptionally(throwable -> {
-                logger.debug("Failed to get ready check status", throwable);
+                if (!isShuttingDown) {
+                    logger.debug("Failed to get ready check status: {}", throwable.getMessage());
+                }
                 return null;
             });
     }
     
     private void checkChampSelect() {
-        if (!isMonitoring || connection == null || currentPhase != GamePhase.CHAMP_SELECT) {
+        if (!isMonitoring || connection == null || isShuttingDown) {
+            return;
+        }
+        
+        if (currentPhase != GamePhase.CHAMP_SELECT) {
             // 如果离开了英雄选择阶段，重置相关状态
-            if (currentPhase != GamePhase.CHAMP_SELECT && currentMatchId != null) {
+            if (currentMatchId != null || lastChampSelectSession != null) {
                 currentMatchId = null;
                 lastChampSelectSession = null;
                 logger.debug("Reset champion select state as we left the phase");
@@ -142,6 +283,10 @@ public class LCUMonitor {
         
         connection.get("/lol-champ-select/v1/session")
             .thenAccept(response -> {
+                if (isShuttingDown) {
+                    return;
+                }
+                
                 if (response != null && !response.isMissingNode()) {
                     // 检查session是否真正发生了变化，减少不必要的处理
                     String currentSessionHash = response.toString();
@@ -150,13 +295,19 @@ public class LCUMonitor {
                         lastChampSelectSession = currentSessionHash;
                         
                         if (onChampSelectSessionChanged != null) {
-                            onChampSelectSessionChanged.accept(response);
+                            try {
+                                onChampSelectSessionChanged.accept(response);
+                            } catch (Exception e) {
+                                logger.error("Error in champion select callback", e);
+                            }
                         }
                     }
                 }
             })
             .exceptionally(throwable -> {
-                logger.debug("Failed to get champion select session", throwable);
+                if (!isShuttingDown) {
+                    logger.debug("Failed to get champion select session: {}", throwable.getMessage());
+                }
                 return null;
             });
     }
@@ -559,22 +710,44 @@ public class LCUMonitor {
     }
     
     public void shutdown() {
+        logger.info("Shutting down LCU Monitor...");
+        isShuttingDown = true;
         stopMonitoring();
         
-        if (scheduler != null) {
+        if (scheduler != null && !scheduler.isShutdown()) {
             scheduler.shutdown();
             try {
-                if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                // Wait a bit longer for smart polling threads to finish
+                if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+                    logger.warn("LCU Monitor scheduler did not terminate gracefully, forcing shutdown");
                     scheduler.shutdownNow();
+                    
+                    // Wait a bit more for forced shutdown
+                    if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                        logger.error("LCU Monitor scheduler could not be stopped");
+                    }
                 }
             } catch (InterruptedException e) {
+                logger.warn("Interrupted while shutting down LCU Monitor scheduler");
                 scheduler.shutdownNow();
+                Thread.currentThread().interrupt();
             }
         }
         
         if (connection != null) {
-            connection.shutdown();
+            try {
+                connection.shutdown();
+            } catch (Exception e) {
+                logger.warn("Error shutting down LCU connection", e);
+            }
         }
+        
+        // Reset state
+        currentPhase = GamePhase.NONE;
+        isInReadyCheck = false;
+        currentMatchId = null;
+        lastChampSelectSession = null;
+        consecutiveFailures = 0;
         
         logger.info("LCU Monitor shut down successfully");
     }

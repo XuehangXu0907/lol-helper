@@ -3,6 +3,7 @@ package com.lol.championselector.controller;
 import com.lol.championselector.config.AutoAcceptConfig;
 import com.lol.championselector.model.Champion;
 import com.lol.championselector.manager.LanguageManager;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -18,7 +19,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.ResourceBundle;
 
 public class PositionConfigDialogController implements Initializable {
@@ -244,9 +244,23 @@ public class PositionConfigDialogController implements Initializable {
     
     private void selectChampion(ChampionSelectionCallback callback) {
         try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/ChampionSelectorView.fxml"));
+            logger.debug("Starting to load champion selector dialog");
+            
+            // 检查FXML资源是否存在
+            URL fxmlResource = getClass().getResource("/fxml/ChampionSelectorView.fxml");
+            if (fxmlResource == null) {
+                logger.error("FXML resource not found: /fxml/ChampionSelectorView.fxml");
+                showChampionSelectorError("无法找到英雄选择器界面文件，请检查应用程序安装是否完整。");
+                return;
+            }
+            
+            FXMLLoader loader = new FXMLLoader(fxmlResource);
+            logger.debug("FXML loader created successfully");
+            
             Stage stage = new Stage();
             Scene scene = new Scene(loader.load());
+            logger.debug("FXML loaded successfully, scene created");
+            
             stage.setScene(scene);
             stage.setTitle(languageManager.getString("dialog.selectChampion"));
             stage.initModality(Modality.APPLICATION_MODAL);
@@ -257,12 +271,61 @@ public class PositionConfigDialogController implements Initializable {
             stage.setMinHeight(450);
             
             ChampionSelectorController controller = loader.getController();
+            if (controller == null) {
+                logger.error("ChampionSelectorController is null after FXML loading");
+                showChampionSelectorError("英雄选择器控制器初始化失败，请重试或重启应用程序。");
+                return;
+            }
+            
             controller.setSelectionMode(true);
             controller.setOnChampionSelected(callback::onChampionSelected);
+            logger.debug("ChampionSelectorController configured successfully");
             
-            stage.showAndWait();
+            // 给一个小的延迟来确保控制器完全初始化
+            Platform.runLater(() -> {
+                // 等待控制器初始化完成
+                checkInitializationAndShow(stage, controller, 0);
+            });
+            
         } catch (IOException e) {
-            logger.error("Failed to open champion selector", e);
+            logger.error("IOException occurred while opening champion selector", e);
+            showChampionSelectorError("打开英雄选择器时发生IO错误：" + e.getMessage() + 
+                                    "\n\n请检查应用程序文件是否完整，或尝试重新启动应用程序。");
+        } catch (Exception e) {
+            logger.error("Unexpected error occurred while opening champion selector", e);
+            showChampionSelectorError("打开英雄选择器时发生未预期的错误：" + e.getMessage() + 
+                                    "\n\n请尝试重新启动应用程序，如果问题持续存在，请联系技术支持。");
+        }
+    }
+    
+    private void showChampionSelectorError(String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("英雄选择器错误");
+        alert.setHeaderText("无法打开英雄选择器");
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+    
+    private void checkInitializationAndShow(Stage stage, ChampionSelectorController controller, int attemptCount) {
+        final int MAX_ATTEMPTS = 20;  // 最多等待2秒 (20 * 100ms)
+        
+        if (controller.isInitialized()) {
+            logger.info("Champion selector initialized successfully, showing dialog");
+            stage.show();
+        } else if (attemptCount < MAX_ATTEMPTS) {
+            logger.debug("Champion selector not yet initialized, attempt {} of {}", attemptCount + 1, MAX_ATTEMPTS);
+            // 等待100ms后再检查
+            Platform.runLater(() -> {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                checkInitializationAndShow(stage, controller, attemptCount + 1);
+            });
+        } else {
+            logger.error("Champion selector failed to initialize after {} attempts", MAX_ATTEMPTS);
+            showChampionSelectorError("英雄选择器初始化超时。\n\n这可能是由于网络连接问题或系统资源不足导致的。请检查网络连接并重试。");
         }
     }
     

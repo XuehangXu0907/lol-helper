@@ -2,6 +2,7 @@ package com.lol.championselector;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.reflect.InvocationTargetException;
 
 /**
  * LOL Helper Launcher
@@ -197,17 +198,21 @@ public class Launcher {
             Class.forName("okhttp3.Request");
             Class.forName("okhttp3.Response");
             // Test instantiation
-            Object httpClient = Class.forName("okhttp3.OkHttpClient").newInstance();
+            Class.forName("okhttp3.OkHttpClient").getDeclaredConstructor().newInstance();
             safeLog("✓ HTTP client component available");
             availableComponents.add("OkHttp");
         } catch (ClassNotFoundException e) {
             String error = "HTTP client component unavailable: " + e.getMessage();
             System.err.println("✗ " + error);
             missingComponents.add("OkHttp Library");
+        } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
+            String error = "HTTP client component instantiation failed: " + e.getMessage();
+            System.err.println("✗ " + error);
+            missingComponents.add("OkHttp Library (instantiation failed)");
         } catch (Exception e) {
             String error = "HTTP client component check failed: " + e.getMessage();
             System.err.println("✗ " + error);
-            missingComponents.add("OkHttp Library (instantiation failed)");
+            missingComponents.add("OkHttp Library (check failed)");
         }
         
         // Check JSON processing components with enhanced error handling
@@ -215,17 +220,21 @@ public class Launcher {
             Class.forName("com.fasterxml.jackson.databind.ObjectMapper");
             Class.forName("com.fasterxml.jackson.databind.JsonNode");
             // Test instantiation
-            Object objectMapper = Class.forName("com.fasterxml.jackson.databind.ObjectMapper").newInstance();
+            Class.forName("com.fasterxml.jackson.databind.ObjectMapper").getDeclaredConstructor().newInstance();
             safeLog("✓ JSON processing component available");
             availableComponents.add("Jackson");
         } catch (ClassNotFoundException e) {
             String error = "JSON processing component unavailable: " + e.getMessage();
             System.err.println("✗ " + error);
             missingComponents.add("Jackson JSON Library");
+        } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
+            String error = "JSON processing component instantiation failed: " + e.getMessage();
+            System.err.println("✗ " + error);
+            missingComponents.add("Jackson JSON Library (instantiation failed)");
         } catch (Exception e) {
             String error = "JSON processing component check failed: " + e.getMessage();
             System.err.println("✗ " + error);
-            missingComponents.add("Jackson JSON Library (instantiation failed)");
+            missingComponents.add("Jackson JSON Library (check failed)");
         }
         
         // Check caching components

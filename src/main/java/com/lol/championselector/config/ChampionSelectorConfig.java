@@ -21,7 +21,7 @@ public class ChampionSelectorConfig {
     
     // UI configuration
     private int buttonSize = 100;
-    private int minColumns = 3;
+    private int minColumns = 2;
     private int maxColumns = 12;
     private int buttonSpacing = 5;
     private int windowMargin = 60;

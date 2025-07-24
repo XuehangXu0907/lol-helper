@@ -3,6 +3,7 @@ package com.lol.championselector;
 import com.lol.championselector.config.ChampionSelectorConfig;
 import com.lol.championselector.controller.AutoAcceptController;
 import com.lol.championselector.manager.SystemTrayManager;
+import com.lol.championselector.manager.ResourceManager;
 import com.lol.championselector.util.SafePlatformUtil;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -207,6 +208,12 @@ public class ChampionSelectorApplication extends Application {
             if (systemTrayManager != null) {
                 systemTrayManager.destroy();
             }
+            
+            // Shutdown resource manager (this will clean up all ExecutorServices and Timelines)
+            ResourceManager.getInstance().shutdown();
+            
+            // Give a moment for cleanup
+            Thread.sleep(500);
             
             // 强制退出所有后台线程
             Platform.exit();

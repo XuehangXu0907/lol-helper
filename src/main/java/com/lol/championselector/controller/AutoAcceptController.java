@@ -14,6 +14,7 @@ import com.lol.championselector.manager.DraftPickEngine;
 import com.lol.championselector.manager.SmartChampionSelector;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import com.lol.championselector.manager.ResourceManager;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -31,7 +32,6 @@ import javafx.scene.layout.Region;
 import javafx.scene.control.ScrollPane;
 import java.util.List;
 import javafx.stage.Modality;
-import javafx.stage.Stage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -150,7 +150,6 @@ public class AutoAcceptController implements Initializable {
     @FXML private CheckBox autoConnectCheckBox;
     @FXML private CheckBox autoReconnectCheckBox;
     @FXML private Label autoStartStatusLabel;
-    @FXML private Button testAutoStartButton;
     @FXML private Label trayStatusLabel;
     
     // Popup suppression settings
@@ -175,7 +174,6 @@ public class AutoAcceptController implements Initializable {
     
     // Content panels
     @FXML private ScrollPane contentScrollPane;
-    @FXML private StackPane contentStackPane;
     @FXML private VBox autoFunctionContent;
     @FXML private VBox systemSettingsContent;
     @FXML private VBox advancedContent;
@@ -187,11 +185,7 @@ public class AutoAcceptController implements Initializable {
     
     // Status bar elements
     @FXML private Button toggleStatusButton;
-    @FXML private Label operationCountLabel;
-    @FXML private Label uptimeLabel;
     
-    // Connection status indicator
-    @FXML private Region connectionStatusIndicator;
     
     // Card titles
     @FXML private Label autoAcceptCardTitle;
@@ -203,7 +197,6 @@ public class AutoAcceptController implements Initializable {
     @FXML private Label autoBanStatusBadge;
     @FXML private Label autoPickStatusBadge;
     
-    @FXML private ComboBox<String> logLevelComboBox;
     
     private LCUMonitor lcuMonitor;
     private AutoAcceptConfig config;
@@ -219,9 +212,12 @@ public class AutoAcceptController implements Initializable {
     private SmartChampionSelector smartChampionSelector;
     private com.lol.championselector.ChampionSelectorApplication application;
     
+    // Resource management
+    private final ResourceManager resourceManager = ResourceManager.getInstance();
+    
     // Action tracking to prevent duplicate operations
-    private Set<Integer> processedActions = new HashSet<>();
-    private Map<Integer, ActionStatus> actionStatusMap = new HashMap<>();
+    private final Set<Integer> processedActions = new HashSet<>();
+    private final Map<Integer, ActionStatus> actionStatusMap = new HashMap<>();
     private String lastSessionId = null;
     
     // Action status enum for better tracking
@@ -233,7 +229,7 @@ public class AutoAcceptController implements Initializable {
     }
     
     // Action retry tracking
-    private Map<Integer, Integer> actionRetryCount = new HashMap<>();
+    private final Map<Integer, Integer> actionRetryCount = new HashMap<>();
     private static final int MAX_RETRY_COUNT = 3;
     
     // Player position tracking
@@ -278,25 +274,36 @@ public class AutoAcceptController implements Initializable {
     
     private void optimizeScrollSpeed() {
         if (contentScrollPane != null) {
-            // Set faster scroll speed - increase the scroll unit increment
+            logger.debug("Setting up scroll speed optimization for main UI");
+            
+            // Set much faster scroll speed with fixed pixel increment
             contentScrollPane.setOnScroll(event -> {
                 if (event.getDeltaY() != 0) {
-                    // Multiply scroll delta by 10 for faster scrolling
-                    double deltaY = event.getDeltaY() * 10;
-                    double height = contentScrollPane.getContent().getBoundsInLocal().getHeight();
-                    double vvalue = contentScrollPane.getVvalue();
+                    // Use fixed pixel increment for more predictable scrolling
+                    double scrollPixels = event.getDeltaY() > 0 ? -120 : 120; // 120 pixels per scroll
+                    double contentHeight = contentScrollPane.getContent().getBoundsInLocal().getHeight();
+                    double viewportHeight = contentScrollPane.getViewportBounds().getHeight();
                     
-                    // Calculate new scroll position
-                    double scrollAmount = deltaY / height;
-                    double newVvalue = vvalue - scrollAmount;
+                    if (contentHeight > viewportHeight) {
+                        double currentVvalue = contentScrollPane.getVvalue();
+                        double scrollableHeight = contentHeight - viewportHeight;
+                        double scrollAmount = scrollPixels / scrollableHeight;
+                        double newVvalue = currentVvalue + scrollAmount;
+                        
+                        // Clamp to valid range [0, 1]
+                        newVvalue = Math.max(0, Math.min(1, newVvalue));
+                        
+                        logger.trace("Scroll event: deltaY={}, newVvalue={}", event.getDeltaY(), newVvalue);
+                        contentScrollPane.setVvalue(newVvalue);
+                    }
                     
-                    // Clamp to valid range [0, 1]
-                    newVvalue = Math.max(0, Math.min(1, newVvalue));
-                    
-                    contentScrollPane.setVvalue(newVvalue);
                     event.consume();
                 }
             });
+            
+            logger.info("Scroll speed optimization configured for main UI");
+        } else {
+            logger.warn("contentScrollPane is null, cannot optimize scroll speed");
         }
     }
     
@@ -333,6 +340,7 @@ public class AutoAcceptController implements Initializable {
                         attemptAutoConnection();
                     }
                 }));
+                resourceManager.registerTimeline(timeline);
                 timeline.play();
             });
         } else {
@@ -717,7 +725,7 @@ public class AutoAcceptController implements Initializable {
             
             logger.debug("Log viewer dialog opened successfully");
             
-        } catch (Exception e) {
+        } catch (IOException | RuntimeException e) {
             logger.error("Failed to open log viewer dialog", e);
             showAlert(languageManager.getString("error.title"), languageManager.getString("error.openLogViewer") + ": " + e.getMessage());
         }
@@ -812,6 +820,7 @@ public class AutoAcceptController implements Initializable {
         // 停止自动重连
         if (autoReconnectTimeline != null) {
             autoReconnectTimeline.stop();
+            resourceManager.unregisterTimeline(autoReconnectTimeline);
             autoReconnectTimeline = null;
         }
         
@@ -841,6 +850,7 @@ public class AutoAcceptController implements Initializable {
                     // 停止重连任务
                     if (autoReconnectTimeline != null) {
                         autoReconnectTimeline.stop();
+                        resourceManager.unregisterTimeline(autoReconnectTimeline);
                         autoReconnectTimeline = null;
                     }
                 } else {
@@ -878,11 +888,13 @@ public class AutoAcceptController implements Initializable {
                 // 已连接，停止重连任务
                 if (autoReconnectTimeline != null) {
                     autoReconnectTimeline.stop();
+                    resourceManager.unregisterTimeline(autoReconnectTimeline);
                     autoReconnectTimeline = null;
                 }
             }
         }));
         autoReconnectTimeline.setCycleCount(Timeline.INDEFINITE);
+        resourceManager.registerTimeline(autoReconnectTimeline);
         autoReconnectTimeline.play();
         
         appendStatus("已启动自动重连，每" + intervalSeconds + "秒检测一次");
@@ -1033,32 +1045,6 @@ public class AutoAcceptController implements Initializable {
         }
     }
     
-    
-    private void selectChampion(String mode, ChampionSelectionCallback callback) {
-        try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/ChampionSelectorView.fxml"));
-            Stage stage = new Stage();
-            Scene scene = new Scene(loader.load());
-            stage.setScene(scene);
-            stage.setTitle("选择" + mode + "英雄");
-            stage.initModality(Modality.APPLICATION_MODAL);
-            
-            // 设置弹窗大小
-            stage.setWidth(900);
-            stage.setHeight(550);
-            stage.setMinWidth(700);
-            stage.setMinHeight(450);
-            
-            ChampionSelectorController controller = loader.getController();
-            controller.setSelectionMode(true);
-            controller.setOnChampionSelected(callback::onChampionSelected);
-            
-            stage.showAndWait();
-        } catch (IOException e) {
-            logger.error("Failed to open champion selector", e);
-            appendStatus("打开英雄选择器失败：" + e.getMessage());
-        }
-    }
     
     private void updateConnectionStatus(boolean connected) {
         Platform.runLater(() -> {
@@ -1259,29 +1245,32 @@ public class AutoAcceptController implements Initializable {
             return true; // 新的action可以处理
         }
         
-        switch (status) {
-            case PROCESSING:
+        return switch (status) {
+            case PROCESSING -> {
                 logger.debug("Action {} is already being processed", actionId);
-                return false;
-            case SUCCESS:
+                yield false;
+            }
+            case SUCCESS -> {
                 logger.debug("Action {} was already completed successfully", actionId);
-                return false;
-            case RETRY_LIMIT:
+                yield false;
+            }
+            case RETRY_LIMIT -> {
                 logger.warn("Action {} has reached retry limit", actionId);
-                return false;
-            case FAILED:
+                yield false;
+            }
+            case FAILED -> {
                 int retryCount = actionRetryCount.getOrDefault(actionId, 0);
                 if (retryCount >= MAX_RETRY_COUNT) {
                     actionStatusMap.put(actionId, ActionStatus.RETRY_LIMIT);
                     logger.warn("Action {} reached maximum retry count: {}", actionId, retryCount);
-                    return false;
+                    yield false;
                 } else {
                     logger.info("Action {} can be retried (attempt {} of {})", actionId, retryCount + 1, MAX_RETRY_COUNT);
-                    return true;
+                    yield true;
                 }
-            default:
-                return true;
-        }
+            }
+            default -> true;
+        };
     }
     
     /**
@@ -1319,100 +1308,7 @@ public class AutoAcceptController implements Initializable {
         }
     }
 
-    /**
-     * 增强的网络连接状态验证
-     */
-    private boolean validateLCUConnectionWithRetry(String operationName, int actionId) {
-        if (lcuMonitor == null) {
-            logger.error("[{}] LCU Monitor is null", operationName);
-            Platform.runLater(() -> appendStatus("✗ " + operationName + "失败：LCU连接不可用"));
-            markActionFailed(actionId, "LCU Monitor is null");
-            return false;
-        }
-        
-        if (!lcuMonitor.isConnected()) {
-            logger.warn("[{}] LCU is not connected, attempting reconnection", operationName);
-            Platform.runLater(() -> appendStatus("⚠ " + operationName + "：LCU连接丢失，正在尝试重连..."));
-            
-            // 尝试重新连接
-            try {
-                boolean reconnected = lcuMonitor.connect().get();
-                if (reconnected) {
-                    logger.info("[{}] Successfully reconnected to LCU", operationName);
-                    Platform.runLater(() -> appendStatus("✓ LCU重连成功，继续" + operationName));
-                    return true;
-                } else {
-                    logger.error("[{}] Failed to reconnect to LCU", operationName);
-                    Platform.runLater(() -> appendStatus("✗ " + operationName + "失败：LCU重连失败"));
-                    markActionFailed(actionId, "LCU reconnection failed");
-                    return false;
-                }
-            } catch (Exception e) {
-                logger.error("[{}] Exception during LCU reconnection", operationName, e);
-                Platform.runLater(() -> appendStatus("✗ " + operationName + "失败：LCU重连异常"));
-                markActionFailed(actionId, "LCU reconnection exception: " + e.getMessage());
-                return false;
-            }
-        }
-        
-        return true;
-    }
     
-    /**
-     * 带重试的执行操作
-     */
-    private <T> CompletableFuture<T> executeWithRetry(Supplier<CompletableFuture<T>> operation, String operationName, int maxRetries) {
-        return operation.get()
-            .exceptionally(throwable -> {
-                logger.warn("[{}] Operation failed, will retry. Error: {}", operationName, throwable.getMessage());
-                return null;
-            })
-            .thenCompose(result -> {
-                if (result != null) {
-                    return CompletableFuture.completedFuture(result);
-                } else {
-                    // 重试逻辑
-                    return retryOperation(operation, operationName, maxRetries, 1);
-                }
-            });
-    }
-    
-    /**
-     * 递归重试操作
-     */
-    private <T> CompletableFuture<T> retryOperation(Supplier<CompletableFuture<T>> operation, String operationName, int maxRetries, int currentAttempt) {
-        if (currentAttempt > maxRetries) {
-            logger.error("[{}] All retry attempts failed ({})", operationName, maxRetries);
-            return CompletableFuture.completedFuture(null);
-        }
-        
-        logger.info("[{}] Retry attempt {} of {}", operationName, currentAttempt, maxRetries);
-        Platform.runLater(() -> appendStatus("⚠ " + operationName + "重试中 (" + currentAttempt + "/" + maxRetries + ")"));
-        
-        // 等待递增延迟后重试
-        int delayMs = currentAttempt * 1000; // 1秒、2秒、3秒延迟
-        return CompletableFuture
-            .runAsync(() -> {}, CompletableFuture.delayedExecutor(delayMs, TimeUnit.MILLISECONDS))
-            .thenCompose(v -> operation.get())
-            .thenCompose(result -> {
-                if (result != null) {
-                    logger.info("[{}] Retry attempt {} succeeded", operationName, currentAttempt);
-                    return CompletableFuture.completedFuture(result);
-                } else {
-                    return retryOperation(operation, operationName, maxRetries, currentAttempt + 1);
-                }
-            })
-            .exceptionally(throwable -> {
-                logger.warn("[{}] Retry attempt {} failed: {}", operationName, currentAttempt, throwable.getMessage());
-                if (currentAttempt < maxRetries) {
-                    // 继续下一次重试
-                    return retryOperation(operation, operationName, maxRetries, currentAttempt + 1).join();
-                } else {
-                    logger.error("[{}] Final retry attempt failed", operationName);
-                    return null;
-                }
-            });
-    }
 
     /**
      * 记录详细的pick决策过程
@@ -1668,7 +1564,7 @@ public class AutoAcceptController implements Initializable {
                         }
                     });
                 }
-            } catch (Exception e) {
+            } catch (InterruptedException | java.util.concurrent.ExecutionException e) {
                 logger.warn("Failed to get teammate hovered champions for smart ban", e);
             }
         } else {
@@ -1759,67 +1655,6 @@ public class AutoAcceptController implements Initializable {
         return null;
     }
     
-    /**
-     * 增强版本的ban英雄选择，返回详细的队列信息
-     */
-    private QueueSelectionResult selectAvailableBanChampionWithDetails(AutoAcceptConfig.ChampionInfo defaultBanChampion, Set<Integer> bannedChampions) {
-        String userSelectedPosition = getUserSelectedPosition();
-        
-        // 优先级1：如果启用了分路预设，优先从LCU API检测的位置选择英雄
-        if (config.getChampionSelect().isUsePositionBasedSelection() && currentPlayerPosition != null) {
-            AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(currentPlayerPosition);
-            if (positionConfig != null) {
-                QueueSelectionResult result = findAvailableChampionInQueue(positionConfig.getBanChampions(), bannedChampions, "position_queue");
-                if (result != null) {
-                    result.getChampion().ensureChampionId();
-                    logger.info("Selected ban champion {} from LCU detected position {} queue (position {} of {})", 
-                               result.getChampion(), currentPlayerPosition, result.getQueuePosition() + 1, result.getTotalQueueSize());
-                    return result;
-                }
-            }
-        }
-        
-        // 优先级2：如果LCU API位置不可用，使用用户手动选择的分路
-        if (config.getChampionSelect().isUsePositionBasedSelection() && userSelectedPosition != null) {
-            AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(userSelectedPosition);
-            if (positionConfig != null) {
-                QueueSelectionResult result = findAvailableChampionInQueue(positionConfig.getBanChampions(), bannedChampions, "position_queue");
-                if (result != null) {
-                    result.getChampion().ensureChampionId();
-                    logger.info("Selected ban champion {} from user selected position {} queue (position {} of {})", 
-                               result.getChampion(), userSelectedPosition, result.getQueuePosition() + 1, result.getTotalQueueSize());
-                    return result;
-                }
-            }
-        }
-        
-        // 优先级3：搜索所有分路配置寻找可用英雄
-        if (config.getChampionSelect().isUsePositionBasedSelection()) {
-            for (Map.Entry<String, AutoAcceptConfig.PositionConfig> entry : config.getChampionSelect().getPositionConfigs().entrySet()) {
-                String positionName = entry.getKey();
-                AutoAcceptConfig.PositionConfig positionConfig = entry.getValue();
-                
-                QueueSelectionResult result = findAvailableChampionInQueue(positionConfig.getBanChampions(), bannedChampions, "other_position_queue");
-                if (result != null) {
-                    result.getChampion().ensureChampionId();
-                    logger.info("Selected ban champion {} from {} position queue (position {} of {}) - fallback search", 
-                               result.getChampion(), positionName, result.getQueuePosition() + 1, result.getTotalQueueSize());
-                    return result;
-                }
-            }
-        }
-        
-        // 优先级4：使用全局默认英雄（如果未被ban）
-        if (defaultBanChampion != null && defaultBanChampion.getChampionId() != null &&
-            !bannedChampions.contains(defaultBanChampion.getChampionId())) {
-            logger.info("Using global default ban champion {} (priority 4)", defaultBanChampion);
-            return new QueueSelectionResult(defaultBanChampion, 0, 1, "global_default");
-        }
-        
-        // 优先级5：无可用英雄
-        logger.warn("No available ban champion found - all options exhausted (banned champions: {})", bannedChampions);
-        return null;
-    }
     
     /**
      * 在队列中查找可用英雄
@@ -2027,6 +1862,7 @@ public class AutoAcceptController implements Initializable {
                 });
         }));
         
+        resourceManager.registerTimeline(delayTimeline);
         delayTimeline.play();
     }
     
@@ -2137,6 +1973,7 @@ public class AutoAcceptController implements Initializable {
                 });
         }));
         
+        resourceManager.registerTimeline(delayTimeline);
         delayTimeline.play();
     }
     
@@ -2740,15 +2577,15 @@ public class AutoAcceptController implements Initializable {
     private String translatePosition(String position) {
         if (position == null) return languageManager.getString("common.unknown");
         
-        switch (position.toLowerCase()) {
-            case "global": return languageManager.getString("position.global");
-            case "top": return languageManager.getString("position.top");
-            case "jungle": return languageManager.getString("position.jungle");
-            case "middle": return languageManager.getString("position.middle");
-            case "bottom": return languageManager.getString("position.bottom");
-            case "utility": return languageManager.getString("position.utility");
-            default: return position;
-        }
+        return switch (position.toLowerCase()) {
+            case "global" -> languageManager.getString("position.global");
+            case "top" -> languageManager.getString("position.top");
+            case "jungle" -> languageManager.getString("position.jungle");
+            case "middle" -> languageManager.getString("position.middle");
+            case "bottom" -> languageManager.getString("position.bottom");
+            case "utility" -> languageManager.getString("position.utility");
+            default -> position;
+        };
     }
     
     private void appendStatus(String message) {
@@ -2824,6 +2661,7 @@ public class AutoAcceptController implements Initializable {
             // 如果禁用了重连功能，停止当前的重连任务
             if (!enabled && autoReconnectTimeline != null) {
                 autoReconnectTimeline.stop();
+                resourceManager.unregisterTimeline(autoReconnectTimeline);
                 autoReconnectTimeline = null;
                 appendStatus("已停止自动重连任务");
             }
@@ -2943,17 +2781,11 @@ public class AutoAcceptController implements Initializable {
      */
     private void updateLanguageButtonText(LanguageManager.Language currentLanguage) {
         if (languageToggleButton != null) {
-            String buttonText;
-            switch (currentLanguage) {
-                case CHINESE:
-                    buttonText = "中→EN"; // 当前中文，提示可切换到英文
-                    break;
-                case ENGLISH:
-                    buttonText = "EN→中"; // 当前英文，提示可切换到中文
-                    break;
-                default:
-                    buttonText = "中→EN";
-            }
+            String buttonText = switch (currentLanguage) {
+                case CHINESE -> "中→EN"; // 当前中文，提示可切换到英文
+                case ENGLISH -> "EN→中"; // 当前英文，提示可切换到中文
+                default -> "中→EN";
+            };
             languageToggleButton.setText(buttonText);
         }
     }
@@ -3130,26 +2962,6 @@ public class AutoAcceptController implements Initializable {
     }
     
     
-    private void showTrayIconGuidance() {
-        Platform.runLater(() -> {
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("托盘图标使用指导");
-            alert.setHeaderText("托盘图标不可见的可能原因和解决方案");
-            
-            String guidance = "如果您无法看到LOL Helper的托盘图标，请尝试以下解决方案：\n\n" +
-                    "1. 点击“刷新托盘”按钮重新加载图标\n" +
-                    "2. 检查Windows系统托盘设置：\n" +
-                    "   - 右键点击任务栏，选择“任务栏设置”\n" +
-                    "   - 在“通知区域”中选择“选择在任务栏上显示的图标”\n" +
-                    "   - 找到LOL Helper并开启显示\n" +
-                    "3. 如果问题仍然存在，请以管理员身份运行程序\n" +
-                    "4. 重启应用程序或重启计算机\n\n" +
-                    "注意：即使图标不可见，通知功能仍可能正常工作。";
-            
-            alert.setContentText(guidance);
-            alert.showAndWait();
-        });
-    }
     
     private void updateTrayStatus() {
         if (trayStatusLabel != null && systemTrayManager != null) {
@@ -3636,7 +3448,7 @@ public class AutoAcceptController implements Initializable {
         Set<Integer> pickedChampions = draftAnalysis.getPickedChampions();
         
         // 调用原有的ban逻辑，但传递更多信息
-        handleAutoBanWithContext(actionId, bannedChampions, pickedChampions);
+        handleAutoBanWithContext(actionId);
     }
     
     /**
@@ -3655,7 +3467,8 @@ public class AutoAcceptController implements Initializable {
             Timeline delayTimeline = new Timeline(new KeyFrame(Duration.seconds(3), event -> {
                 executeEnhancedPick(actionId, draftAnalysis);
             }));
-            delayTimeline.play();
+            resourceManager.registerTimeline(delayTimeline);
+        delayTimeline.play();
         } else {
             executeEnhancedPick(actionId, draftAnalysis);
         }
@@ -3672,7 +3485,6 @@ public class AutoAcceptController implements Initializable {
         List<AutoAcceptConfig.ChampionInfo> championQueue = getChampionQueueForCurrentPosition();
         
         // 获取剩余时间信息
-        int remainingTimeSeconds = 30; // 默认值
         if (lcuMonitor != null) {
             lcuMonitor.getRemainingTimeInPhase()
                 .thenAccept(timeSeconds -> {
@@ -3718,7 +3530,8 @@ public class AutoAcceptController implements Initializable {
                 Timeline delayTimeline = new Timeline(new KeyFrame(Duration.seconds(delaySeconds), event -> {
                     executePickWithStrategy(actionId, strategy);
                 }));
-                delayTimeline.play();
+                resourceManager.registerTimeline(delayTimeline);
+        delayTimeline.play();
             } else {
                 executePickWithStrategy(actionId, strategy);
             }
@@ -3788,9 +3601,8 @@ public class AutoAcceptController implements Initializable {
     /**
      * 带上下文的Ban处理
      */
-    private void handleAutoBanWithContext(int actionId, Set<Integer> bannedChampions, Set<Integer> pickedChampions) {
-        // 调用现有的ban逻辑，但传递更多上下文信息
-        // 这里可以进一步优化ban逻辑，考虑已ban/pick的英雄
+    private void handleAutoBanWithContext(int actionId) {
+        // 调用现有的ban逻辑
         handleAutoBan(actionId);
     }
     

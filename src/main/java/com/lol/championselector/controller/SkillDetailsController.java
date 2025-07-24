@@ -10,6 +10,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -27,6 +28,7 @@ public class SkillDetailsController implements Initializable {
     @FXML private VBox skillsContainer;
     @FXML private Button closeButton;
     @FXML private Button okButton;
+    @FXML private ScrollPane skillsScrollPane;
     
     private Champion champion;
     private ChampionSkills skills;
@@ -48,6 +50,39 @@ public class SkillDetailsController implements Initializable {
         });
         
         updateTexts();
+        optimizeScrollSpeed();
+    }
+    
+    private void optimizeScrollSpeed() {
+        if (skillsScrollPane != null) {
+            logger.debug("Setting up scroll speed optimization for skill details");
+            
+            // Set faster scroll speed with fixed pixel increment
+            skillsScrollPane.setOnScroll(event -> {
+                if (event.getDeltaY() != 0) {
+                    // Use fixed pixel increment for more predictable scrolling
+                    double scrollPixels = event.getDeltaY() > 0 ? -120 : 120; // 120 pixels per scroll
+                    double contentHeight = skillsScrollPane.getContent().getBoundsInLocal().getHeight();
+                    double viewportHeight = skillsScrollPane.getViewportBounds().getHeight();
+                    
+                    if (contentHeight > viewportHeight) {
+                        double currentVvalue = skillsScrollPane.getVvalue();
+                        double scrollableHeight = contentHeight - viewportHeight;
+                        double scrollAmount = scrollPixels / scrollableHeight;
+                        double newVvalue = currentVvalue + scrollAmount;
+                        
+                        // Clamp to valid range [0, 1]
+                        newVvalue = Math.max(0, Math.min(1, newVvalue));
+                        
+                        skillsScrollPane.setVvalue(newVvalue);
+                    }
+                    
+                    event.consume();
+                }
+            });
+            
+            logger.debug("Scroll speed optimization configured for skill details");
+        }
     }
     
     public void setChampion(Champion champion) {

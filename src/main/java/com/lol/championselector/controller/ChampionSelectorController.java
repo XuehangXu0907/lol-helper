@@ -10,6 +10,7 @@ import com.lol.championselector.model.ChampionSkills;
 import com.lol.championselector.model.Skill;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import com.lol.championselector.manager.ResourceManager;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -66,6 +67,7 @@ public class ChampionSelectorController implements Initializable {
     
     private Timeline searchTimeline;
     private Timeline resizeTimeline;
+    private final ResourceManager resourceManager = ResourceManager.getInstance();
     private int currentColumns;
     private Champion selectedChampion;
     private List<Button> championButtons;
@@ -94,6 +96,7 @@ public class ChampionSelectorController implements Initializable {
         setupLoadingIndicator();
         setupFilterButtons();
         updateTexts();
+        optimizeScrollSpeed();
         
         // Listen for language changes
         languageManager.currentLocaleProperty().addListener((obs, oldVal, newVal) -> {
@@ -111,8 +114,42 @@ public class ChampionSelectorController implements Initializable {
         updateFilterButtonStyles();
     }
     
+    private void optimizeScrollSpeed() {
+        if (championScrollPane != null) {
+            logger.debug("Setting up scroll speed optimization for champion selector");
+            
+            // Set faster scroll speed with fixed pixel increment
+            championScrollPane.setOnScroll(event -> {
+                if (event.getDeltaY() != 0) {
+                    // Use fixed pixel increment for more predictable scrolling
+                    double scrollPixels = event.getDeltaY() > 0 ? -120 : 120; // 120 pixels per scroll
+                    double contentHeight = championScrollPane.getContent().getBoundsInLocal().getHeight();
+                    double viewportHeight = championScrollPane.getViewportBounds().getHeight();
+                    
+                    if (contentHeight > viewportHeight) {
+                        double currentVvalue = championScrollPane.getVvalue();
+                        double scrollableHeight = contentHeight - viewportHeight;
+                        double scrollAmount = scrollPixels / scrollableHeight;
+                        double newVvalue = currentVvalue + scrollAmount;
+                        
+                        // Clamp to valid range [0, 1]
+                        newVvalue = Math.max(0, Math.min(1, newVvalue));
+                        
+                        championScrollPane.setVvalue(newVvalue);
+                    }
+                    
+                    event.consume();
+                }
+            });
+            
+            logger.debug("Scroll speed optimization configured for champion selector");
+        }
+    }
+    
     private void setupSearchDebounce() {
         searchTimeline = new Timeline();
+        resourceManager.registerTimeline(searchTimeline);
+        
         searchField.textProperty().addListener((obs, oldText, newText) -> {
             searchTimeline.stop();
             searchTimeline.getKeyFrames().clear();
@@ -130,6 +167,8 @@ public class ChampionSelectorController implements Initializable {
         Scene scene = championGrid.getScene();
         if (scene != null) {
             resizeTimeline = new Timeline();
+            resourceManager.registerTimeline(resizeTimeline);
+            
             scene.widthProperty().addListener((obs, oldWidth, newWidth) -> {
                 resizeTimeline.stop();
                 resizeTimeline.getKeyFrames().clear();
@@ -181,10 +220,16 @@ public class ChampionSelectorController implements Initializable {
         
         // 计算当前窗口的最佳列数
         Scene scene = championGrid.getScene();
-        if (scene != null) {
+        if (scene != null && scene.getWidth() > 0 && !Double.isNaN(scene.getWidth())) {
             currentColumns = layoutManager.calculateOptimalColumns(scene.getWidth());
+            logger.debug("Using scene width {} for initial layout calculation: {} columns", 
+                        scene.getWidth(), currentColumns);
         } else {
-            currentColumns = layoutManager.getMinColumns();
+            // 对话框预设宽度为900px，使用这个值进行初始计算
+            double defaultDialogWidth = 900.0;
+            currentColumns = layoutManager.calculateOptimalColumns(defaultDialogWidth);
+            logger.debug("Scene width unavailable, using default dialog width {} for initial layout: {} columns", 
+                        defaultDialogWidth, currentColumns);
         }
         
         layoutManager.rearrangeChampionGrid(championGrid, 
@@ -490,6 +535,10 @@ public class ChampionSelectorController implements Initializable {
     
     public void setOnChampionSelected(ChampionSelectionCallback callback) {
         this.onChampionSelected = callback;
+    }
+    
+    public boolean isInitialized() {
+        return championButtons != null && !championButtons.isEmpty() && championGrid != null;
     }
     
     // 类型过滤事件处理方法

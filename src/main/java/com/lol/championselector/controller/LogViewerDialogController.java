@@ -66,6 +66,7 @@ public class LogViewerDialogController implements Initializable {
         setupComponents();
         setupEventHandlers();
         updateLogStats();
+        optimizeScrollSpeed();
     }
     
     /**
@@ -146,6 +147,38 @@ public class LogViewerDialogController implements Initializable {
                 applyFilters();
             }
         });
+    }
+    
+    private void optimizeScrollSpeed() {
+        if (logScrollPane != null) {
+            logger.debug("Setting up scroll speed optimization for log viewer");
+            
+            // Set faster scroll speed with fixed pixel increment
+            logScrollPane.setOnScroll(event -> {
+                if (event.getDeltaY() != 0) {
+                    // Use fixed pixel increment for more predictable scrolling
+                    double scrollPixels = event.getDeltaY() > 0 ? -120 : 120; // 120 pixels per scroll
+                    double contentHeight = logScrollPane.getContent().getBoundsInLocal().getHeight();
+                    double viewportHeight = logScrollPane.getViewportBounds().getHeight();
+                    
+                    if (contentHeight > viewportHeight) {
+                        double currentVvalue = logScrollPane.getVvalue();
+                        double scrollableHeight = contentHeight - viewportHeight;
+                        double scrollAmount = scrollPixels / scrollableHeight;
+                        double newVvalue = currentVvalue + scrollAmount;
+                        
+                        // Clamp to valid range [0, 1]
+                        newVvalue = Math.max(0, Math.min(1, newVvalue));
+                        
+                        logScrollPane.setVvalue(newVvalue);
+                    }
+                    
+                    event.consume();
+                }
+            });
+            
+            logger.debug("Scroll speed optimization configured for log viewer");
+        }
     }
     
     @FXML

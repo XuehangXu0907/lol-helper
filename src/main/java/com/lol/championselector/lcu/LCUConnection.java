@@ -21,7 +21,8 @@ public class LCUConnection {
     private final String authToken;
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
-    private boolean isConnected = false;
+    private volatile boolean isConnected = false;
+    private volatile boolean isShuttingDown = false;
     
     public LCUConnection(int port, String password) {
         this.baseUrl = "https://127.0.0.1:" + port;
@@ -55,13 +56,20 @@ public class LCUConnection {
             return new OkHttpClient.Builder()
                 .sslSocketFactory(sslContext.getSocketFactory(), (X509TrustManager) trustAllCerts[0])
                 .hostnameVerifier((hostname, session) -> true)
-                .connectTimeout(5, TimeUnit.SECONDS)
-                .readTimeout(10, TimeUnit.SECONDS)
+                .connectTimeout(3, TimeUnit.SECONDS) // Reduced timeout
+                .readTimeout(8, TimeUnit.SECONDS)   // Reduced timeout
+                .writeTimeout(5, TimeUnit.SECONDS)  // Add write timeout
+                .connectionPool(new okhttp3.ConnectionPool(5, 5, TimeUnit.MINUTES)) // Limited connection pool
                 .addInterceptor(chain -> {
+                    if (isShuttingDown) {
+                        throw new java.io.IOException("Connection is shutting down");
+                    }
+                    
                     Request original = chain.request();
                     Request.Builder requestBuilder = original.newBuilder()
                         .addHeader("Authorization", authToken)
-                        .addHeader("Content-Type", "application/json");
+                        .addHeader("Content-Type", "application/json")
+                        .addHeader("Connection", "close"); // Prevent connection reuse issues
                     return chain.proceed(requestBuilder.build());
                 })
                 .build();
@@ -112,7 +120,15 @@ public class LCUConnection {
     }
     
     private CompletableFuture<JsonNode> makeRequest(String method, String endpoint, Object body) {
+        if (isShuttingDown) {
+            return CompletableFuture.completedFuture(objectMapper.createObjectNode().put("error", "Connection is shutting down"));
+        }
+        
         return CompletableFuture.supplyAsync(() -> {
+            if (isShuttingDown) {
+                return objectMapper.createObjectNode().put("error", "Connection is shutting down");
+            }
+            
             try {
                 Request.Builder requestBuilder = new Request.Builder()
                     .url(baseUrl + endpoint);
@@ -146,6 +162,10 @@ public class LCUConnection {
                 Request request = requestBuilder.build();
                 
                 try (Response response = httpClient.newCall(request).execute()) {
+                    if (isShuttingDown) {
+                        return objectMapper.createObjectNode().put("error", "Connection is shutting down");
+                    }
+                    
                     String responseBodyString = "";
                     if (response.body() != null) {
                         responseBodyString = response.body().string();
@@ -154,23 +174,41 @@ public class LCUConnection {
                     if (response.isSuccessful()) {
                         logger.debug("Request successful: {} {} - HTTP {} - Response: {}", 
                                    method, endpoint, response.code(), 
-                                   responseBodyString.length() > 500 ? responseBodyString.substring(0, 500) + "..." : responseBodyString);
+                                   responseBodyString.length() > 300 ? responseBodyString.substring(0, 300) + "..." : responseBodyString);
                         
                         if (!responseBodyString.isEmpty()) {
-                            return objectMapper.readTree(responseBodyString);
+                            try {
+                                return objectMapper.readTree(responseBodyString);
+                            } catch (Exception parseException) {
+                                logger.warn("Failed to parse JSON response for {} {}: {}", method, endpoint, parseException.getMessage());
+                                return objectMapper.createObjectNode().put("error", "Invalid JSON response");
+                            }
                         } else {
                             // 返回成功的空对象（某些操作可能没有响应体）
                             return objectMapper.createObjectNode().put("success", true);
                         }
                     } else {
                         logger.error("Request failed: {} {} - HTTP {} - Response: {}", 
-                                   method, endpoint, response.code(), responseBodyString);
+                                   method, endpoint, response.code(), 
+                                   responseBodyString.length() > 200 ? responseBodyString.substring(0, 200) + "..." : responseBodyString);
                         return objectMapper.createObjectNode().put("error", true).put("status", response.code());
                     }
                 }
+            } catch (java.net.SocketTimeoutException e) {
+                if (!isShuttingDown) {
+                    logger.debug("Request timeout: {} {} - {}", method, endpoint, e.getMessage());
+                }
+                return objectMapper.createObjectNode().put("error", "timeout");
+            } catch (java.io.IOException e) {
+                if (!isShuttingDown) {
+                    logger.debug("IO error for request: {} {} - {}", method, endpoint, e.getMessage());
+                }
+                return objectMapper.createObjectNode().put("error", "io_error");
             } catch (Exception e) {
-                logger.error("Request failed: {} {}", method, endpoint, e);
-                return objectMapper.createObjectNode();
+                if (!isShuttingDown) {
+                    logger.error("Request failed: {} {} - {}", method, endpoint, e.getMessage());
+                }
+                return objectMapper.createObjectNode().put("error", "exception");
             }
         });
     }
@@ -184,9 +222,28 @@ public class LCUConnection {
     }
     
     public void shutdown() {
+        logger.info("Shutting down LCU connection...");
+        isShuttingDown = true;
+        isConnected = false;
+        
         try {
+            // Cancel all pending calls
+            httpClient.dispatcher().cancelAll();
+            
+            // Shutdown dispatcher executor service
             httpClient.dispatcher().executorService().shutdown();
+            try {
+                if (!httpClient.dispatcher().executorService().awaitTermination(5, TimeUnit.SECONDS)) {
+                    httpClient.dispatcher().executorService().shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                httpClient.dispatcher().executorService().shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            
+            // Close all connections
             httpClient.connectionPool().evictAll();
+            
             logger.info("LCU connection shut down successfully");
         } catch (Exception e) {
             logger.warn("Error during LCU connection shutdown", e);

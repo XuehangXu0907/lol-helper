@@ -170,6 +170,7 @@ public class LCUApiExplorer {
     }
     
     private CompletableFuture<Void> exploreEndpoints(String category, String[] endpoints) {
+        @SuppressWarnings("unchecked")
         CompletableFuture<Void>[] futures = new CompletableFuture[endpoints.length];
         
         for (int i = 0; i < endpoints.length; i++) {

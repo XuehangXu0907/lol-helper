@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.Set;
 import java.util.HashSet;
 
 /**
