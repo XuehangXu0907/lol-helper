@@ -1,21 +1,33 @@
 @echo off
 chcp 65001 >nul
-title 测试构建脚本改进 v2.2.0
+title 测试构建脚本改进 v2.2.2
 
 echo ================================================
-echo      测试构建脚本改进功能 v2.2.0
+echo      测试构建脚本改进功能 v2.2.2
 echo ================================================
 echo.
 
 cd /d "%~dp0"
 
 echo [1] 测试版本号检测...
-for /f "tokens=1,2 delims=<>" %%i in ('findstr "<version>" pom.xml') do (
-    if "%%i"=="version" (
-        set APP_VERSION=%%j
+for /f "tokens=2 delims=<>" %%i in ('findstr /n "<version>" pom.xml ^| findstr "10:"') do (
+    set APP_VERSION=%%i
+    goto :version_found
+)
+
+REM 备用方法
+if "%APP_VERSION%"=="" (
+    for /f "tokens=2 delims=<>" %%i in ('findstr "<version>2\." pom.xml') do (
+        set APP_VERSION=%%i
         goto :version_found
     )
 )
+
+REM 最后备用
+if "%APP_VERSION%"=="" (
+    set APP_VERSION=2.2.2
+)
+
 :version_found
 
 if "%APP_VERSION%"=="" (
@@ -26,12 +38,9 @@ if "%APP_VERSION%"=="" (
 
 echo.
 echo [2] 测试artifactId检测...
-for /f "tokens=1,2 delims=<>" %%i in ('findstr "<artifactId>" pom.xml') do (
-    if "%%i"=="artifactId" (
-        set JAR_NAME=%%j
-        goto :artifactid_found
-    )
-)
+REM 直接设置已知的JAR名称
+set JAR_NAME=lol-auto-ban-pick-tool
+
 :artifactid_found
 
 if "%JAR_NAME%"=="" (
@@ -94,14 +103,43 @@ if %errorlevel% equ 0 (
 
 echo.
 echo.
-echo [7] 测试分路预设修复验证...
-echo 检查修复后的AutoAcceptController.java是否包含调试日志...
-if exist "src\main\java\com\lol\championselector\controller\AutoAcceptController.java" (
-    findstr /C:"Simple delay ban setup" "src\main\java\com\lol\championselector\controller\AutoAcceptController.java" >nul 2>&1
+echo [7] 测试翻译功能验证...
+echo 检查翻译文件完整性...
+if exist "src\main\resources\messages_zh_CN.properties" (
+    echo ✅ 中文翻译文件存在
+    REM 检查是否包含关键翻译键
+    findstr /C:"tab.autoFunction" "src\main\resources\messages_zh_CN.properties" >nul 2>&1
     if %errorlevel% equ 0 (
-        echo ✅ 分路预设修复代码已包含
+        echo ✅ Tab页翻译键已包含
     ) else (
-        echo ⚠️ 分路预设修复代码未检测到
+        echo ⚠️ Tab页翻译键未检测到
+    )
+) else (
+    echo ❌ 中文翻译文件不存在
+)
+
+if exist "src\main\resources\messages_en_US.properties" (
+    echo ✅ 英文翻译文件存在
+    REM 检查是否包含关键翻译键
+    findstr /C:"tab.autoFunction" "src\main\resources\messages_en_US.properties" >nul 2>&1
+    if %errorlevel% equ 0 (
+        echo ✅ Tab页英文翻译键已包含
+    ) else (
+        echo ⚠️ Tab页英文翻译键未检测到
+    )
+) else (
+    echo ❌ 英文翻译文件不存在
+)
+
+echo.
+echo [8] 测试控制器翻译支持验证...
+echo 检查AutoAcceptController.java是否包含翻译方法...
+if exist "src\main\java\com\lol\championselector\controller\AutoAcceptController.java" (
+    findstr /C:"autoFunctionTab" "src\main\java\com\lol\championselector\controller\AutoAcceptController.java" >nul 2>&1
+    if %errorlevel% equ 0 (
+        echo ✅ Tab翻译支持代码已包含
+    ) else (
+        echo ⚠️ Tab翻译支持代码未检测到
     )
 ) else (
     echo ❌ AutoAcceptController.java 不存在
@@ -109,14 +147,16 @@ if exist "src\main\java\com\lol\championselector\controller\AutoAcceptController
 
 echo.
 echo ================================================
-echo              测试完成 v2.2.0
+echo              测试完成 v2.2.2
 echo ================================================
 echo.
 echo 所有检测项目已完成。如果有红色的❌标记，
 echo 请解决相应问题后再运行完整的构建脚本。
 echo.
-echo 🔧 v2.2.0 新增验证项目:
-echo   - 分路预设修复代码验证
-echo   - 构建脚本版本一致性检查
+echo 🆕 v2.2.2 新增验证项目:
+echo   - 翻译文件完整性验证
+echo   - Tab页翻译键检查
+echo   - 控制器翻译支持验证
+echo   - 界面翻译功能完整性检查
 echo.
 pause

@@ -146,12 +146,26 @@ public class LCUConnection {
                 Request request = requestBuilder.build();
                 
                 try (Response response = httpClient.newCall(request).execute()) {
-                    if (response.isSuccessful() && response.body() != null) {
-                        String responseBody = response.body().string();
-                        return objectMapper.readTree(responseBody);
+                    String responseBodyString = "";
+                    if (response.body() != null) {
+                        responseBodyString = response.body().string();
+                    }
+                    
+                    if (response.isSuccessful()) {
+                        logger.debug("Request successful: {} {} - HTTP {} - Response: {}", 
+                                   method, endpoint, response.code(), 
+                                   responseBodyString.length() > 500 ? responseBodyString.substring(0, 500) + "..." : responseBodyString);
+                        
+                        if (!responseBodyString.isEmpty()) {
+                            return objectMapper.readTree(responseBodyString);
+                        } else {
+                            // 返回成功的空对象（某些操作可能没有响应体）
+                            return objectMapper.createObjectNode().put("success", true);
+                        }
                     } else {
-                        logger.warn("Request failed: {} {} - HTTP {}", method, endpoint, response.code());
-                        return objectMapper.createObjectNode();
+                        logger.error("Request failed: {} {} - HTTP {} - Response: {}", 
+                                   method, endpoint, response.code(), responseBodyString);
+                        return objectMapper.createObjectNode().put("error", true).put("status", response.code());
                     }
                 }
             } catch (Exception e) {

@@ -24,6 +24,9 @@ import java.util.ResourceBundle;
 public class PositionConfigDialogController implements Initializable {
     private static final Logger logger = LoggerFactory.getLogger(PositionConfigDialogController.class);
     
+    @FXML private Label titleLabel;
+    @FXML private Label banChampionsListLabel;
+    @FXML private Label pickChampionsListLabel;
     @FXML private ComboBox<String> positionSelector;
     @FXML private ListView<AutoAcceptConfig.ChampionInfo> banChampionsListView;
     @FXML private ListView<AutoAcceptConfig.ChampionInfo> pickChampionsListView;
@@ -61,10 +64,11 @@ public class PositionConfigDialogController implements Initializable {
         initializePositionSelector();
         setupListViews();
         updateButtonStates();
+        updateTexts();
     }
     
     private void initializePositionSelector() {
-        positionSelector.getItems().addAll("top", "jungle", "middle", "bottom", "utility");
+        positionSelector.getItems().addAll("global", "top", "jungle", "middle", "bottom", "utility");
         
         // 设置显示转换器
         positionSelector.setConverter(new javafx.util.StringConverter<String>() {
@@ -75,14 +79,13 @@ public class PositionConfigDialogController implements Initializable {
             
             @Override
             public String fromString(String string) {
-                switch (string) {
-                    case "上路": return "top";
-                    case "打野": return "jungle";
-                    case "中路": return "middle";
-                    case "下路ADC": return "bottom";
-                    case "辅助": return "utility";
-                    default: return string;
+                // 反向查找位置键
+                for (String pos : new String[]{"global", "top", "jungle", "middle", "bottom", "utility"}) {
+                    if (translatePosition(pos).equals(string)) {
+                        return pos;
+                    }
                 }
+                return string;
             }
         });
         
@@ -206,9 +209,10 @@ public class PositionConfigDialogController implements Initializable {
     @FXML
     private void onResetClicked() {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("确认重置");
-        alert.setHeaderText("重置分路配置");
-        alert.setContentText("确定要将" + translatePosition(currentPosition) + "的配置重置为默认值吗？");
+        alert.setTitle(languageManager.getString("dialog.confirmReset"));
+        alert.setHeaderText(languageManager.getString("dialog.resetPositionConfig"));
+        alert.setContentText(languageManager.getString("dialog.confirmClearContent")
+            .replace("{0}", translatePosition(currentPosition)));
         
         alert.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
@@ -244,7 +248,7 @@ public class PositionConfigDialogController implements Initializable {
             Stage stage = new Stage();
             Scene scene = new Scene(loader.load());
             stage.setScene(scene);
-            stage.setTitle("选择英雄");
+            stage.setTitle(languageManager.getString("dialog.selectChampion"));
             stage.initModality(Modality.APPLICATION_MODAL);
             
             stage.setWidth(900);
@@ -307,15 +311,10 @@ public class PositionConfigDialogController implements Initializable {
     private void resetCurrentPositionToDefault() {
         if (currentPosition == null) return;
         
-        // 创建新的默认配置
-        AutoAcceptConfig.PositionConfig defaultConfig = createDefaultPositionConfig(currentPosition);
-        
-        // 更新UI
-        if (defaultConfig != null) {
-            banChampionsListView.getItems().setAll(defaultConfig.getBanChampions());
-            pickChampionsListView.getItems().setAll(defaultConfig.getPickChampions());
-            markAsModified();
-        }
+        // 清空所有英雄列表，而不是恢复默认配置
+        banChampionsListView.getItems().clear();
+        pickChampionsListView.getItems().clear();
+        markAsModified();
     }
     
     private AutoAcceptConfig.PositionConfig createDefaultPositionConfig(String position) {
@@ -383,15 +382,64 @@ public class PositionConfigDialogController implements Initializable {
     }
     
     private String translatePosition(String position) {
-        if (position == null) return "未知";
+        if (position == null) return languageManager.getString("common.unknown");
         
         switch (position.toLowerCase()) {
-            case "top": return "上路";
-            case "jungle": return "打野";
-            case "middle": return "中路";
-            case "bottom": return "下路ADC";
-            case "utility": return "辅助";
+            case "global": return languageManager.getString("position.global");
+            case "top": return languageManager.getString("position.top");
+            case "jungle": return languageManager.getString("position.jungle");
+            case "middle": return languageManager.getString("position.middle");
+            case "bottom": return languageManager.getString("position.bottom");
+            case "utility": return languageManager.getString("position.utility");
             default: return position;
+        }
+    }
+    
+    public void updateTexts() {
+        if (titleLabel != null) {
+            titleLabel.setText(languageManager.getString("dialog.positionConfigTitle"));
+        }
+        if (banChampionsListLabel != null) {
+            banChampionsListLabel.setText(languageManager.getString("dialog.banChampionsList"));
+        }
+        if (pickChampionsListLabel != null) {
+            pickChampionsListLabel.setText(languageManager.getString("dialog.pickChampionsList"));
+        }
+        if (positionSelector != null) {
+            positionSelector.setPromptText(languageManager.getString("dialog.selectPosition"));
+        }
+        if (addBanButton != null) {
+            addBanButton.setText(languageManager.getString("button.add"));
+        }
+        if (removeBanButton != null) {
+            removeBanButton.setText(languageManager.getString("button.remove"));
+        }
+        if (moveBanUpButton != null) {
+            moveBanUpButton.setText(languageManager.getString("button.moveUp"));
+        }
+        if (moveBanDownButton != null) {
+            moveBanDownButton.setText(languageManager.getString("button.moveDown"));
+        }
+        if (addPickButton != null) {
+            addPickButton.setText(languageManager.getString("button.add"));
+        }
+        if (removePickButton != null) {
+            removePickButton.setText(languageManager.getString("button.remove"));
+        }
+        if (movePickUpButton != null) {
+            movePickUpButton.setText(languageManager.getString("button.moveUp"));
+        }
+        if (movePickDownButton != null) {
+            movePickDownButton.setText(languageManager.getString("button.moveDown"));
+        }
+        if (resetButton != null) {
+            resetButton.setText(languageManager.getString("button.reset"));
+        }
+        if (cancelButton != null) {
+            cancelButton.setText(languageManager.getString("button.cancel"));
+        }
+        if (saveButton != null) {
+            saveButton.setText(languageManager.getString("button.save"));
         }
     }
     

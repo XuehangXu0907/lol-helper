@@ -179,34 +179,116 @@ public class LCUMonitor {
     
     public CompletableFuture<Boolean> banChampion(int championId, int actionId) {
         if (connection == null) {
+            logger.error("Cannot ban champion - connection is null");
             return CompletableFuture.completedFuture(false);
         }
         
+        logger.info("Attempting to ban champion ID: {} for action: {}", championId, actionId);
         BanPickAction action = new BanPickAction(championId, true);
+        
         return connection.patch("/lol-champ-select/v1/session/actions/" + actionId, action)
             .thenApply(response -> {
-                logger.info("Banned champion ID: {}", championId);
-                return true;
+                // Check for error response first
+                if (response != null && response.has("error")) {
+                    logger.error("Ban request failed with HTTP error for champion ID: {}, action: {}, status: {}", 
+                               championId, actionId, response.get("status").asInt());
+                    return false;
+                }
+                
+                // Check if response contains meaningful data (not empty ObjectNode)
+                if (response != null && response.size() > 0) {
+                    // For successful operations, LCU might return the updated action or just success indicator
+                    if (response.has("success")) {
+                        logger.info("Successfully banned champion ID: {} for action: {} (success indicator)", championId, actionId);
+                        return true;
+                    }
+                    
+                    // Verify the action was actually updated
+                    JsonNode championIdNode = response.get("championId");
+                    JsonNode completedNode = response.get("completed");
+                    
+                    if (championIdNode != null && completedNode != null) {
+                        int responseChampionId = championIdNode.asInt();
+                        boolean responseCompleted = completedNode.asBoolean();
+                        
+                        if (responseChampionId == championId && responseCompleted) {
+                            logger.info("Successfully banned champion ID: {} for action: {} (verified response)", championId, actionId);
+                            return true;
+                        } else {
+                            logger.warn("Ban response mismatch - Expected: championId={}, completed=true, Got: championId={}, completed={}", 
+                                       championId, responseChampionId, responseCompleted);
+                            return false;
+                        }
+                    } else {
+                        // Some successful operations might not return the full action data
+                        logger.info("Ban request completed for champion ID: {} for action: {} (no validation data)", championId, actionId);
+                        return true;
+                    }
+                } else {
+                    logger.error("Ban request failed - empty or null response for champion ID: {}, action: {}", championId, actionId);
+                    return false;
+                }
             })
             .exceptionally(throwable -> {
-                logger.error("Failed to ban champion ID: {}", championId, throwable);
+                logger.error("Exception during ban champion ID: {} for action: {}", championId, actionId, throwable);
                 return false;
             });
     }
     
     public CompletableFuture<Boolean> pickChampion(int championId, int actionId) {
         if (connection == null) {
+            logger.error("Cannot pick champion - connection is null");
             return CompletableFuture.completedFuture(false);
         }
         
+        logger.info("Attempting to pick champion ID: {} for action: {}", championId, actionId);
         BanPickAction action = new BanPickAction(championId, true);
+        
         return connection.patch("/lol-champ-select/v1/session/actions/" + actionId, action)
             .thenApply(response -> {
-                logger.info("Picked champion ID: {}", championId);
-                return true;
+                // Check for error response first
+                if (response != null && response.has("error")) {
+                    logger.error("Pick request failed with HTTP error for champion ID: {}, action: {}, status: {}", 
+                               championId, actionId, response.get("status").asInt());
+                    return false;
+                }
+                
+                // Check if response contains meaningful data (not empty ObjectNode)
+                if (response != null && response.size() > 0) {
+                    // For successful operations, LCU might return the updated action or just success indicator
+                    if (response.has("success")) {
+                        logger.info("Successfully picked champion ID: {} for action: {} (success indicator)", championId, actionId);
+                        return true;
+                    }
+                    
+                    // Verify the action was actually updated
+                    JsonNode championIdNode = response.get("championId");
+                    JsonNode completedNode = response.get("completed");
+                    
+                    if (championIdNode != null && completedNode != null) {
+                        int responseChampionId = championIdNode.asInt();
+                        boolean responseCompleted = completedNode.asBoolean();
+                        
+                        if (responseChampionId == championId && responseCompleted) {
+                            logger.info("Successfully picked champion ID: {} for action: {} (verified response)", championId, actionId);
+                            return true;
+                        } else {
+                            logger.warn("Pick response mismatch - Expected: championId={}, completed=true, Got: championId={}, completed={}", 
+                                       championId, responseChampionId, responseCompleted);
+                            return false;
+                        }
+                    } else {
+                        // Some successful operations might not return the full action data
+                        logger.info("Pick request completed for champion ID: {} for action: {} (no validation data)", championId, actionId);
+                        return true;
+                    }
+                } else {
+                    logger.error("Pick request failed - empty or null response for champion ID: {}, action: {}", championId, actionId);
+                    return false;
+                }
             })
             .exceptionally(throwable -> {
-                logger.error("Failed to pick champion ID: {}", championId, throwable);
+                logger.error("Exception during pick champion ID: {} for action: {}", championId, actionId, throwable);
                 return false;
             });
     }
@@ -447,7 +529,12 @@ public class LCUMonitor {
     }
     
     public boolean isConnected() {
-        return connection != null && connection.isConnected();
+        try {
+            return connection != null && connection.isConnected();
+        } catch (Exception e) {
+            logger.debug("Error checking connection status", e);
+            return false;
+        }
     }
     
     public boolean isMonitoring() {
@@ -502,5 +589,97 @@ public class LCUMonitor {
             this.championId = championId;
             this.completed = completed;
         }
+    }
+    
+    /**
+     * Get teammate hover (prepick) champions
+     * Returns a set of champion IDs that teammates have hovered but not locked in
+     */
+    public CompletableFuture<Set<Integer>> getTeammateHoveredChampions() {
+        return getChampSelectSessionDetails()
+            .thenApply(session -> {
+                Set<Integer> hoveredChampions = new HashSet<>();
+                
+                if (session == null || session.isMissingNode()) {
+                    logger.debug("getTeammateHoveredChampions: session is null or missing");
+                    return hoveredChampions;
+                }
+                
+                // Get local player cell ID to exclude self
+                JsonNode localPlayerCell = session.path("localPlayerCellId");
+                int localCellId = localPlayerCell.isMissingNode() ? -1 : localPlayerCell.asInt();
+                
+                // Check my team for hovered champions
+                JsonNode myTeam = session.path("myTeam");
+                if (myTeam.isArray()) {
+                    for (JsonNode member : myTeam) {
+                        JsonNode cellIdNode = member.path("cellId");
+                        if (!cellIdNode.isMissingNode() && cellIdNode.asInt() != localCellId) {
+                            // This is a teammate, check their champion pick intent
+                            int championPickIntent = member.path("championPickIntent").asInt(0);
+                            int championId = member.path("championId").asInt(0);
+                            
+                            // If they have a pick intent but haven't locked in yet
+                            if (championPickIntent != 0 && championId == 0) {
+                                hoveredChampions.add(championPickIntent);
+                                logger.debug("Teammate hovered champion: {}", championPickIntent);
+                            }
+                        }
+                    }
+                }
+                
+                logger.debug("Found {} teammate hovered champions: {}", hoveredChampions.size(), hoveredChampions);
+                return hoveredChampions;
+            })
+            .exceptionally(throwable -> {
+                logger.error("Failed to get teammate hovered champions", throwable);
+                return new HashSet<>();
+            });
+    }
+    
+    /**
+     * Get current player's action ID for the current phase
+     * Used for hover/pick operations
+     */
+    public CompletableFuture<Integer> getCurrentPlayerActionId() {
+        return getChampSelectSessionDetails()
+            .thenApply(session -> {
+                if (session == null || session.isMissingNode()) {
+                    return -1;
+                }
+                
+                // Get local player cell ID
+                JsonNode localPlayerCell = session.path("localPlayerCellId");
+                if (localPlayerCell.isMissingNode()) {
+                    return -1;
+                }
+                int localCellId = localPlayerCell.asInt();
+                
+                // Find current action for the local player
+                JsonNode actions = session.path("actions");
+                if (actions.isArray()) {
+                    for (JsonNode actionGroup : actions) {
+                        if (actionGroup.isArray()) {
+                            for (JsonNode action : actionGroup) {
+                                int actorCellId = action.path("actorCellId").asInt(-1);
+                                boolean isInProgress = action.path("isInProgress").asBoolean(false);
+                                
+                                if (actorCellId == localCellId && isInProgress) {
+                                    int actionId = action.path("id").asInt(-1);
+                                    logger.debug("Found current player action ID: {}", actionId);
+                                    return actionId;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                logger.debug("No current action found for local player");
+                return -1;
+            })
+            .exceptionally(throwable -> {
+                logger.error("Failed to get current player action ID", throwable);
+                return -1;
+            });
     }
 }

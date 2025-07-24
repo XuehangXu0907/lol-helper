@@ -8,286 +8,465 @@
 <?import javafx.collections.FXCollections?>
 <?import java.lang.String?>
 
-<VBox xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lol.championselector.controller.AutoAcceptController" spacing="5.0">
-   <padding>
-      <Insets bottom="10.0" left="15.0" right="15.0" top="10.0" />
-   </padding>
-   <children>
-      <!-- 标题和状态栏 -->
-      <HBox alignment="CENTER_LEFT" spacing="10.0" styleClass="header-bar">
-         <padding>
-            <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
-         </padding>
-         <children>
-            <Label text="LOL助手" styleClass="title">
-               <font>
-                  <Font name="Microsoft YaHei Bold" size="18.0" />
-               </font>
-            </Label>
-            <Region HBox.hgrow="ALWAYS" />
-            <Label fx:id="connectionStatusLabel" text="未连接" styleClass="status-small" />
-            <Button fx:id="languageToggleButton" onAction="#onLanguageToggle" text="中→EN" styleClass="secondary-button" />
-            <Button fx:id="connectButton" onAction="#onConnectClicked" text="连接" styleClass="primary-button" />
-            <Button fx:id="disconnectButton" disable="true" onAction="#onDisconnectClicked" text="断开" />
-         </children>
-      </HBox>
-      
-      <!-- 主功能区域 - 使用TabPane -->
-      <TabPane fx:id="mainTabPane" VBox.vgrow="ALWAYS" tabClosingPolicy="UNAVAILABLE">
-         <tabs>
-            <!-- 自动功能页 -->
-            <Tab text="自动功能">
-               <content>
-                  <VBox spacing="10.0" styleClass="tab-content">
-                     <padding>
-                        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                     </padding>
-                     <children>
-                        <!-- 自动接受卡片 -->
-                        <VBox spacing="8.0" styleClass="card">
-                           <padding>
-                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                           </padding>
-                           <children>
-                              <Label text="自动接受对局" styleClass="card-title">
-                                 <font>
-                                    <Font name="Microsoft YaHei Bold" size="14.0" />
-                                 </font>
-                              </Label>
-                              <HBox alignment="CENTER_LEFT" spacing="10.0">
-                                 <children>
-                                    <CheckBox fx:id="autoAcceptCheckBox" onAction="#onAutoAcceptToggled" text="启用自动接受" />
-                                    <Region HBox.hgrow="ALWAYS" />
-                                    <Label text="检查间隔:" />
-                                    <Spinner fx:id="checkIntervalSpinner" editable="true" prefWidth="100.0" />
-                                    <Label text="ms" />
-                                 </children>
-                              </HBox>
-                           </children>
-                        </VBox>
-                        
-                        <!-- 分路预设卡片 -->
-                        <VBox spacing="8.0" styleClass="card">
-                           <padding>
-                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                           </padding>
-                           <children>
-                              <Label text="分路预设" styleClass="card-title">
-                                 <font>
-                                    <Font name="Microsoft YaHei Bold" size="14.0" />
-                                 </font>
-                              </Label>
-                              <CheckBox fx:id="usePositionPresetsCheckBox" onAction="#onUsePositionPresetsToggled" text="启用分路自动选择" />
-                              <HBox alignment="CENTER_LEFT" spacing="10.0" fx:id="positionPresetsContainer">
-                                 <children>
-                                    <Label text="当前分路:" />
-                                    <ComboBox fx:id="positionComboBox" onAction="#onPositionSelectionChanged" prefWidth="120.0" promptText="选择分路" />
-                                    <Label fx:id="currentPositionStatusLabel" text="未检测到分路" styleClass="hint-small" />
-                                    <Region HBox.hgrow="ALWAYS" />
-                                    <Button fx:id="editPositionConfigButton" onAction="#onEditPositionConfigClicked" text="编辑配置" styleClass="secondary-button" />
-                                 </children>
-                              </HBox>
-                              <!-- 分路预设预览区 -->
-                              <HBox fx:id="positionPreviewContainer" spacing="10.0" alignment="CENTER_LEFT">
-                                 <padding>
-                                    <Insets top="5.0" />
-                                 </padding>
-                              </HBox>
-                           </children>
-                        </VBox>
-                        
-                        <!-- Ban/Pick设置卡片 -->
-                        <VBox spacing="8.0" styleClass="card">
-                           <padding>
-                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                           </padding>
-                           <children>
-                              <Label text="Ban/Pick 设置" styleClass="card-title">
-                                 <font>
-                                    <Font name="Microsoft YaHei Bold" size="14.0" />
-                                 </font>
-                              </Label>
-                              
-                              <!-- Ban设置 -->
-                              <VBox spacing="5.0">
-                                 <children>
-                                    <CheckBox fx:id="autoBanCheckBox" onAction="#onAutoBanToggled" text="自动Ban英雄" />
-                                    <!-- Ban队列状态显示 -->
-                                    <VBox fx:id="banQueueStatus" spacing="3.0" visible="false">
-                                       <padding>
-                                          <Insets left="20.0" />
-                                       </padding>
-                                       <children>
-                                          <Label fx:id="banQueueLabel" text="队列状态: " styleClass="hint-small" />
-                                          <HBox fx:id="banQueuePreview" spacing="5.0" alignment="CENTER_LEFT">
-                                             <children>
-                                                <!-- 动态添加的队列预览项 -->
-                                             </children>
-                                          </HBox>
-                                       </children>
-                                    </VBox>
-                                    <!-- Ban执行模式设置 -->
-                                    <VBox spacing="3.0">
-                                       <padding>
-                                          <Insets left="20.0" />
-                                       </padding>
-                                       <children>
-                                          <Label text="Ban执行模式：" styleClass="hint-small" />
-                                          <HBox spacing="10.0" alignment="CENTER_LEFT">
-                                             <children>
-                                                <CheckBox fx:id="useSimpleDelayBanCheckBox" onAction="#onUseSimpleDelayBanToggled" text="简单延迟执行" />
-                                                <Label text="延迟时间:" />
-                                                <Spinner fx:id="simpleBanDelaySpinner" editable="true" prefWidth="80.0" />
-                                                <Label text="秒" />
-                                             </children>
-                                          </HBox>
-                                       </children>
-                                    </VBox>
-                                 </children>
-                              </VBox>
-                              
-                              <Separator />
-                              
-                              <!-- Pick设置 -->
-                              <VBox spacing="5.0">
-                                 <children>
-                                    <CheckBox fx:id="autoPickCheckBox" onAction="#onAutoPickToggled" text="自动Pick英雄" />
-                                    <!-- Pick队列状态显示 -->
-                                    <VBox fx:id="pickQueueStatus" spacing="3.0" visible="false">
-                                       <padding>
-                                          <Insets left="20.0" />
-                                       </padding>
-                                       <children>
-                                          <Label fx:id="pickQueueLabel" text="队列状态: " styleClass="hint-small" />
-                                          <HBox fx:id="pickQueuePreview" spacing="5.0" alignment="CENTER_LEFT">
-                                             <children>
-                                                <!-- 动态添加的队列预览项 -->
-                                             </children>
-                                          </HBox>
-                                       </children>
-                                    </VBox>
-                                 </children>
-                              </VBox>
-                           </children>
-                        </VBox>
-                     </children>
-                  </VBox>
-               </content>
-            </Tab>
-            
-            <!-- 系统设置页 -->
-            <Tab text="系统设置">
-               <content>
-                  <VBox spacing="10.0" styleClass="tab-content">
-                     <padding>
-                        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                     </padding>
-                     <children>
-                        <!-- 常规设置卡片 -->
-                        <VBox spacing="8.0" styleClass="card">
-                           <padding>
-                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                           </padding>
-                           <children>
-                              <Label text="常规设置" styleClass="card-title">
-                                 <font>
-                                    <Font name="Microsoft YaHei Bold" size="14.0" />
-                                 </font>
-                              </Label>
-                              <CheckBox fx:id="systemTrayCheckBox" onAction="#onSystemTrayToggled" text="启用系统托盘" />
-                              <CheckBox fx:id="minimizeOnCloseCheckBox" onAction="#onMinimizeOnCloseToggled" text="关闭窗口时最小化到托盘" />
-                              <CheckBox fx:id="autoStartCheckBox" onAction="#onAutoStartToggled" text="开机自动启动" />
-                              <Label fx:id="autoStartStatusLabel" text="状态: 检查中" styleClass="hint-small" />
-                              <Label fx:id="trayStatusLabel" text="托盘状态: 检查中" styleClass="hint-small" />
-                           </children>
-                        </VBox>
-                        
-                        <!-- 连接设置卡片 -->
-                        <VBox spacing="8.0" styleClass="card">
-                           <padding>
-                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                           </padding>
-                           <children>
-                              <Label text="连接设置" styleClass="card-title">
-                                 <font>
-                                    <Font name="Microsoft YaHei Bold" size="14.0" />
-                                 </font>
-                              </Label>
-                              <CheckBox fx:id="autoConnectCheckBox" onAction="#onAutoConnectToggled" text="启动时自动连接到游戏客户端" />
-                              <CheckBox fx:id="autoReconnectCheckBox" onAction="#onAutoReconnectToggled" text="断线后自动重连" />
-                           </children>
-                        </VBox>
-                        
-                        <!-- 弹窗抑制卡片 -->
-                        <VBox spacing="8.0" styleClass="card">
-                           <padding>
-                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                           </padding>
-                           <children>
-                              <Label text="智能弹窗抑制" styleClass="card-title">
-                                 <font>
-                                    <Font name="Microsoft YaHei Bold" size="14.0" />
-                                 </font>
-                              </Label>
-                              <Label text="抑制以下阶段的弹窗提醒：" styleClass="hint-small" />
-                              <CheckBox fx:id="suppressReadyCheckCheckBox" onAction="#onSuppressReadyCheckToggled" text="准备检查阶段" />
-                              <CheckBox fx:id="suppressBanPhaseCheckBox" onAction="#onSuppressBanPhaseToggled" text="Ban英雄阶段" />
-                              <CheckBox fx:id="suppressPickPhaseCheckBox" onAction="#onSuppressPickPhaseToggled" text="Pick英雄阶段" />
-                              <Label fx:id="suppressionStatusLabel" text="弹窗抑制未启用" styleClass="hint-small" wrapText="true" />
-                           </children>
-                        </VBox>
-                        
-                     </children>
-                  </VBox>
-               </content>
-            </Tab>
-            
-            <!-- 高级设置页 -->
-            <Tab text="高级">
-               <content>
-                  <VBox spacing="10.0" styleClass="tab-content">
-                     <padding>
-                        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                     </padding>
-                     <children>
-                        <!-- 调试设置卡片 -->
-                        <VBox spacing="8.0" styleClass="card">
-                           <padding>
-                              <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-                           </padding>
-                           <children>
-                              <Label text="调试设置" styleClass="card-title">
-                                 <font>
-                                    <Font name="Microsoft YaHei Bold" size="14.0" />
-                                 </font>
-                              </Label>
-                              <Label text="日志级别：" />
-                              <ComboBox fx:id="logLevelComboBox" prefWidth="150.0">
-                                 <items>
-                                    <FXCollections fx:factory="observableArrayList">
-                                       <String fx:value="INFO" />
-                                       <String fx:value="DEBUG" />
-                                       <String fx:value="WARN" />
-                                       <String fx:value="ERROR" />
-                                    </FXCollections>
-                                 </items>
-                              </ComboBox>
-                           </children>
-                        </VBox>
-                        
-                        <Region VBox.vgrow="ALWAYS" />
-                     </children>
-                  </VBox>
-               </content>
-            </Tab>
-         </tabs>
-      </TabPane>
-      
-      <!-- 状态显示区域（可折叠） -->
-      <TitledPane text="状态信息" expanded="false" styleClass="status-pane">
-         <content>
-            <TextArea fx:id="statusTextArea" editable="false" prefHeight="100.0" promptText="等待状态更新" wrapText="true" />
-         </content>
-      </TitledPane>
-   </children>
+<VBox xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" 
+      fx:controller="com.lol.championselector.controller.AutoAcceptController" 
+      styleClass="main-container">
+   
+   <!-- 顶部导航栏 -->
+   <HBox styleClass="top-navbar">
+      <children>
+         <!-- 应用标题 -->
+         <Label text="LOL助手" styleClass="app-title" />
+         
+         <!-- 填充空间 -->
+         <Region HBox.hgrow="ALWAYS" />
+         
+         <!-- 连接状态指示器 -->
+         <HBox styleClass="connection-status">
+            <children>
+               <Region fx:id="connectionStatusIndicator" styleClass="status-indicator,disconnected" />
+               <Label fx:id="connectionStatusLabel" text="未连接" styleClass="status-text" />
+            </children>
+         </HBox>
+         
+         <!-- 语言切换按钮 -->
+         <Button fx:id="languageToggleButton" onAction="#onLanguageToggle" text="中→EN" 
+                 styleClass="btn,btn-secondary,btn-sm" />
+         
+         <!-- 连接/断开按钮 -->
+         <Button fx:id="connectButton" onAction="#onConnectClicked" text="连接" 
+                 styleClass="btn,btn-primary,btn-md" />
+         <Button fx:id="disconnectButton" disable="true" onAction="#onDisconnectClicked" text="断开" 
+                 styleClass="btn,btn-secondary,btn-md" />
+      </children>
+   </HBox>
+   
+   <!-- 主内容区域 -->
+   <HBox styleClass="main-content-container" VBox.vgrow="ALWAYS">
+      <children>
+         <!-- 侧边导航栏 -->
+         <VBox styleClass="sidebar">
+            <children>
+               <!-- 自动功能导航项 -->
+               <Button fx:id="autoFunctionNavButton" onAction="#onAutoFunctionNavClicked"
+                       styleClass="nav-item,active" alignment="CENTER_LEFT">
+                  <graphic>
+                     <HBox spacing="12" alignment="CENTER_LEFT">
+                        <children>
+                           <Label text="⚡" styleClass="nav-item-icon" />
+                           <Label fx:id="autoFunctionNavText" text="自动功能" styleClass="nav-item-text" />
+                        </children>
+                     </HBox>
+                  </graphic>
+               </Button>
+               
+               <!-- 系统设置导航项 -->
+               <Button fx:id="systemSettingsNavButton" onAction="#onSystemSettingsNavClicked"
+                       styleClass="nav-item" alignment="CENTER_LEFT">
+                  <graphic>
+                     <HBox spacing="12" alignment="CENTER_LEFT">
+                        <children>
+                           <Label text="⚙️" styleClass="nav-item-icon" />
+                           <Label fx:id="systemSettingsNavText" text="系统设置" styleClass="nav-item-text" />
+                        </children>
+                     </HBox>
+                  </graphic>
+               </Button>
+               
+               <!-- 高级设置导航项 -->
+               <Button fx:id="advancedNavButton" onAction="#onAdvancedNavClicked"
+                       styleClass="nav-item" alignment="CENTER_LEFT">
+                  <graphic>
+                     <HBox spacing="12" alignment="CENTER_LEFT">
+                        <children>
+                           <Label text="🔧" styleClass="nav-item-icon" />
+                           <Label fx:id="advancedNavText" text="高级设置" styleClass="nav-item-text" />
+                        </children>
+                     </HBox>
+                  </graphic>
+               </Button>
+            </children>
+         </VBox>
+         
+         <!-- 主内容区域 -->
+         <ScrollPane fx:id="contentScrollPane" styleClass="content-scroll-pane" HBox.hgrow="ALWAYS" fitToWidth="true" 
+                     hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" pannable="true">
+            <content>
+               <VBox styleClass="content-area">
+                  <children>
+                     <!-- 内容容器，通过StackPane切换不同页面 -->
+                     <StackPane fx:id="contentStackPane">
+                  <children>
+                     <!-- 自动功能页面 -->
+                     <VBox fx:id="autoFunctionContent" styleClass="content-page">
+                        <children>
+                           <!-- 核心功能卡片 - 自动接受 -->
+                           <VBox styleClass="modern-card">
+                              <children>
+                                 <HBox styleClass="card-header">
+                                    <children>
+                                       <Label text="⚡" styleClass="card-icon" />
+                                       <VBox spacing="4">
+                                          <children>
+                                             <Label fx:id="autoAcceptCardTitle" text="自动接受对局" styleClass="card-title" />
+                                             <Label text="自动接受游戏对局邀请，无需手动点击" styleClass="card-subtitle" />
+                                          </children>
+                                       </VBox>
+                                       <Region HBox.hgrow="ALWAYS" />
+                                       <CheckBox fx:id="autoAcceptCheckBox" onAction="#onAutoAcceptToggled" 
+                                                 text="启用" styleClass="modern-checkbox" />
+                                    </children>
+                                 </HBox>
+                                 <VBox styleClass="card-content">
+                                    <children>
+                                       <HBox spacing="16" alignment="CENTER_LEFT">
+                                          <children>
+                                             <Label fx:id="checkIntervalLabel" text="检查间隔" styleClass="label-primary" />
+                                             <Spinner fx:id="checkIntervalSpinner" editable="true" prefWidth="80" 
+                                                      styleClass="modern-spinner" />
+                                             <Label fx:id="millisecondsLabel" text="秒" styleClass="label-secondary" />
+                                             <Region HBox.hgrow="ALWAYS" />
+                                             <Label fx:id="autoAcceptStatusBadge" text="已禁用" 
+                                                    styleClass="status-badge,error" />
+                                          </children>
+                                       </HBox>
+                                    </children>
+                                 </VBox>
+                              </children>
+                           </VBox>
+                           
+                           <!-- 分路预设卡片 -->
+                           <VBox styleClass="modern-card">
+                              <children>
+                                 <HBox styleClass="card-header">
+                                    <children>
+                                       <Label text="🎯" styleClass="card-icon" />
+                                       <VBox spacing="4">
+                                          <children>
+                                             <Label fx:id="positionPresetsCardTitle" text="分路预设" styleClass="card-title" />
+                                             <Label text="根据选择的分路自动应用Ban/Pick配置" styleClass="card-subtitle" />
+                                          </children>
+                                       </VBox>
+                                       <Region HBox.hgrow="ALWAYS" />
+                                       <CheckBox fx:id="usePositionPresetsCheckBox" onAction="#onUsePositionPresetsToggled" 
+                                                 text="启用" styleClass="modern-checkbox" />
+                                    </children>
+                                 </HBox>
+                                 <VBox styleClass="card-content">
+                                    <children>
+                                       <HBox spacing="16" alignment="CENTER_LEFT" fx:id="positionPresetsContainer">
+                                          <children>
+                                             <Label fx:id="currentPositionLabel" text="当前分路" styleClass="label-primary" />
+                                             <ComboBox fx:id="positionComboBox" onAction="#onPositionSelectionChanged" 
+                                                       prefWidth="120" promptText="选择分路" styleClass="modern-combobox" />
+                                             <Region HBox.hgrow="ALWAYS" />
+                                             <Button fx:id="editPositionConfigButton" onAction="#onEditPositionConfigClicked" 
+                                                     text="编辑配置" styleClass="btn,btn-secondary,btn-sm" />
+                                          </children>
+                                       </HBox>
+                                       <Label fx:id="currentPositionStatusLabel" text="未检测到分路" styleClass="label-secondary" />
+                                       <!-- 分路预设预览区 -->
+                                       <HBox fx:id="positionPreviewContainer" spacing="8" alignment="CENTER_LEFT">
+                                       </HBox>
+                                    </children>
+                                 </VBox>
+                              </children>
+                           </VBox>
+                           
+                           <!-- 弹窗抑制卡片 -->
+                           <VBox styleClass="modern-card">
+                              <children>
+                                 <HBox styleClass="card-header">
+                                    <children>
+                                       <Label text="🔕" styleClass="card-icon" />
+                                       <VBox spacing="4">
+                                          <children>
+                                             <Label fx:id="popupSuppressionLabel" text="智能弹窗抑制" styleClass="card-title" />
+                                             <Label text="控制不同游戏阶段的弹窗提醒" styleClass="card-subtitle" />
+                                          </children>
+                                       </VBox>
+                                    </children>
+                                 </HBox>
+                                 <VBox styleClass="card-content">
+                                    <children>
+                                       <Label fx:id="suppressionDescriptionLabel" text="抑制以下阶段的弹窗提醒：" styleClass="label-secondary" />
+                                       <CheckBox fx:id="suppressReadyCheckCheckBox" onAction="#onSuppressReadyCheckToggled" 
+                                                 text="准备检查阶段" styleClass="modern-checkbox" />
+                                       <CheckBox fx:id="suppressBanPhaseCheckBox" onAction="#onSuppressBanPhaseToggled" 
+                                                 text="Ban英雄阶段" styleClass="modern-checkbox" />
+                                       <CheckBox fx:id="suppressPickPhaseCheckBox" onAction="#onSuppressPickPhaseToggled" 
+                                                 text="Pick英雄阶段" styleClass="modern-checkbox" />
+                                       <CheckBox fx:id="forceEnglishTrayMenuCheckBox" onAction="#onForceEnglishTrayMenuToggled" 
+                                                 text="强制使用英文托盘菜单" styleClass="modern-checkbox" />
+                                       <Label fx:id="suppressionStatusLabel" text="弹窗抑制未启用" styleClass="label-secondary" />
+                                    </children>
+                                 </VBox>
+                              </children>
+                           </VBox>
+                           
+                           <!-- Ban/Pick设置卡片 -->
+                           <VBox styleClass="modern-card">
+                              <children>
+                                 <HBox styleClass="card-header">
+                                    <children>
+                                       <Label text="🚫" styleClass="card-icon" />
+                                       <VBox spacing="4">
+                                          <children>
+                                             <Label fx:id="banPickSettingsCardTitle" text="Ban/Pick 设置" styleClass="card-title" />
+                                             <Label text="配置自动禁用和选择英雄的相关设置" styleClass="card-subtitle" />
+                                          </children>
+                                       </VBox>
+                                    </children>
+                                 </HBox>
+                                 <VBox styleClass="card-content">
+                                    <children>
+                                       <!-- Ban设置区域 -->
+                                       <VBox spacing="12">
+                                          <children>
+                                             <HBox spacing="16" alignment="CENTER_LEFT">
+                                                <children>
+                                                   <CheckBox fx:id="autoBanCheckBox" onAction="#onAutoBanToggled" 
+                                                             text="自动Ban英雄" styleClass="modern-checkbox" />
+                                                   <Region HBox.hgrow="ALWAYS" />
+                                                   <Label fx:id="autoBanStatusBadge" text="已禁用" 
+                                                          styleClass="status-badge,error" />
+                                                </children>
+                                             </HBox>
+                                             
+                                             <!-- Ban执行模式设置 -->
+                                             <VBox spacing="8" fx:id="banExecutionModeContainer">
+                                                <children>
+                                                   <Label fx:id="banExecutionModeLabel" text="执行模式" styleClass="label-primary" />
+                                                   <HBox spacing="16" alignment="CENTER_LEFT">
+                                                      <children>
+                                                         <CheckBox fx:id="useSimpleDelayBanCheckBox" 
+                                                                   onAction="#onUseSimpleDelayBanToggled" 
+                                                                   text="简单延迟执行" styleClass="modern-checkbox" />
+                                                         <Label fx:id="delayTimeLabel" text="延迟时间" styleClass="label-primary" />
+                                                         <Spinner fx:id="simpleBanDelaySpinner" editable="true" 
+                                                                  prefWidth="80" styleClass="modern-spinner" />
+                                                         <Label fx:id="secondsLabel" text="秒" styleClass="label-secondary" />
+                                                      </children>
+                                                   </HBox>
+                                                </children>
+                                             </VBox>
+                                             
+                                             <!-- Ban队列状态显示 -->
+                                             <VBox fx:id="banQueueStatus" spacing="8" visible="false">
+                                                <children>
+                                                   <Label fx:id="banQueueLabel" text="队列状态" styleClass="label-primary" />
+                                                   <HBox fx:id="banQueuePreview" spacing="8" alignment="CENTER_LEFT">
+                                                      <!-- 动态添加的队列预览项 -->
+                                                   </HBox>
+                                                </children>
+                                             </VBox>
+                                          </children>
+                                       </VBox>
+                                       
+                                       <Separator styleClass="modern-separator" />
+                                       
+                                       <!-- Pick设置区域 -->
+                                       <VBox spacing="12">
+                                          <children>
+                                             <HBox spacing="16" alignment="CENTER_LEFT">
+                                                <children>
+                                                   <CheckBox fx:id="autoPickCheckBox" onAction="#onAutoPickToggled" 
+                                                             text="自动Pick英雄" styleClass="modern-checkbox" />
+                                                   <Region HBox.hgrow="ALWAYS" />
+                                                   <Label fx:id="autoPickStatusBadge" text="已禁用" 
+                                                          styleClass="status-badge,error" />
+                                                </children>
+                                             </HBox>
+                                             
+                                             <!-- Pick延迟设置 -->
+                                             <VBox spacing="8" fx:id="pickExecutionModeContainer">
+                                                <children>
+                                                   <HBox spacing="16" alignment="CENTER_LEFT">
+                                                      <children>
+                                                         <CheckBox fx:id="useSimpleDelayPickCheckBox" 
+                                                                   onAction="#onUseSimpleDelayPickToggled" 
+                                                                   text="简单延迟执行" styleClass="modern-checkbox" />
+                                                         <Label fx:id="pickDelayTimeLabel" text="延迟时间" styleClass="label-primary" />
+                                                         <Spinner fx:id="simplePickDelaySpinner" editable="true" 
+                                                                  prefWidth="80" styleClass="modern-spinner" />
+                                                         <Label fx:id="pickSecondsLabel" text="秒" styleClass="label-secondary" />
+                                                      </children>
+                                                   </HBox>
+                                                </children>
+                                             </VBox>
+                                             
+                                             <!-- Pick队列状态显示 -->
+                                             <VBox fx:id="pickQueueStatus" spacing="8" visible="false">
+                                                <children>
+                                                   <Label fx:id="pickQueueLabel" text="队列状态" styleClass="label-primary" />
+                                                   <HBox fx:id="pickQueuePreview" spacing="8" alignment="CENTER_LEFT">
+                                                      <!-- 动态添加的队列预览项 -->
+                                                   </HBox>
+                                                </children>
+                                             </VBox>
+                                          </children>
+                                       </VBox>
+                                       
+                                       <Separator styleClass="modern-separator" />
+                                       
+                                       <!-- 智能功能设置 -->
+                                       <VBox spacing="8">
+                                          <children>
+                                             <Label fx:id="smartFeaturesLabel" text="智能功能" styleClass="label-primary" />
+                                             <VBox spacing="6">
+                                                <children>
+                                                   <CheckBox fx:id="autoHoverCheckBox" onAction="#onAutoHoverToggled" 
+                                                             text="自动预选英雄（进入选人界面时立即亮英雄）" styleClass="modern-checkbox" />
+                                                   <CheckBox fx:id="smartBanCheckBox" onAction="#onSmartBanToggled" 
+                                                             text="智能禁用（避免禁用队友预选的英雄）" styleClass="modern-checkbox" />
+                                                </children>
+                                             </VBox>
+                                          </children>
+                                       </VBox>
+                                    </children>
+                                 </VBox>
+                              </children>
+                           </VBox>
+                        </children>
+                     </VBox>
+                     
+                     <!-- 系统设置页面 -->
+                     <VBox fx:id="systemSettingsContent" styleClass="content-page" visible="false">
+                        <children>
+                           <!-- 常规设置卡片 -->
+                           <VBox styleClass="modern-card">
+                              <children>
+                                 <HBox styleClass="card-header">
+                                    <children>
+                                       <Label text="⚙️" styleClass="card-icon" />
+                                       <VBox spacing="4">
+                                          <children>
+                                             <Label fx:id="generalSettingsLabel" text="常规设置" styleClass="card-title" />
+                                             <Label text="应用程序的基本配置选项" styleClass="card-subtitle" />
+                                          </children>
+                                       </VBox>
+                                    </children>
+                                 </HBox>
+                                 <VBox styleClass="card-content">
+                                    <children>
+                                       <CheckBox fx:id="systemTrayCheckBox" onAction="#onSystemTrayToggled" 
+                                                 text="启用系统托盘" styleClass="modern-checkbox" />
+                                       <CheckBox fx:id="minimizeOnCloseCheckBox" onAction="#onMinimizeOnCloseToggled" 
+                                                 text="关闭窗口时最小化到托盘" styleClass="modern-checkbox" />
+                                       <CheckBox fx:id="autoStartCheckBox" onAction="#onAutoStartToggled" 
+                                                 text="开机自动启动" styleClass="modern-checkbox" />
+                                       <Label fx:id="autoStartStatusLabel" text="状态: 检查中" styleClass="label-secondary" />
+                                       <Label fx:id="trayStatusLabel" text="托盘状态: 检查中" styleClass="label-secondary" />
+                                    </children>
+                                 </VBox>
+                              </children>
+                           </VBox>
+                           
+                           <!-- 连接设置卡片 -->
+                           <VBox styleClass="modern-card">
+                              <children>
+                                 <HBox styleClass="card-header">
+                                    <children>
+                                       <Label text="🔗" styleClass="card-icon" />
+                                       <VBox spacing="4">
+                                          <children>
+                                             <Label fx:id="connectionSettingsLabel" text="连接设置" styleClass="card-title" />
+                                             <Label text="游戏客户端连接相关配置" styleClass="card-subtitle" />
+                                          </children>
+                                       </VBox>
+                                    </children>
+                                 </HBox>
+                                 <VBox styleClass="card-content">
+                                    <children>
+                                       <CheckBox fx:id="autoConnectCheckBox" onAction="#onAutoConnectToggled" 
+                                                 text="启动时自动连接到游戏客户端" styleClass="modern-checkbox" />
+                                       <CheckBox fx:id="autoReconnectCheckBox" onAction="#onAutoReconnectToggled" 
+                                                 text="断线后自动重连" styleClass="modern-checkbox" />
+                                    </children>
+                                 </VBox>
+                              </children>
+                           </VBox>
+                        </children>
+                     </VBox>
+                     
+                     <!-- 高级设置页面 -->
+                     <VBox fx:id="advancedContent" styleClass="content-page" visible="false">
+                        <children>
+                           <!-- 调试设置卡片 -->
+                           <VBox styleClass="modern-card">
+                              <children>
+                                 <HBox styleClass="card-header">
+                                    <children>
+                                       <Label text="🔧" styleClass="card-icon" />
+                                       <VBox spacing="4">
+                                          <children>
+                                             <Label fx:id="debugSettingsLabel" text="调试设置" styleClass="card-title" />
+                                             <Label text="开发者和高级用户选项" styleClass="card-subtitle" />
+                                          </children>
+                                       </VBox>
+                                    </children>
+                                 </HBox>
+                                 <VBox styleClass="card-content">
+                                    <children>
+                                       <HBox spacing="16" alignment="CENTER_LEFT">
+                                          <children>
+                                             <Label fx:id="logLevelLabel" text="日志级别" styleClass="label-primary" />
+                                             <ComboBox fx:id="logLevelComboBox" prefWidth="150" styleClass="modern-combobox">
+                                                <items>
+                                                   <FXCollections fx:factory="observableArrayList">
+                                                      <String fx:value="INFO" />
+                                                      <String fx:value="DEBUG" />
+                                                      <String fx:value="WARN" />
+                                                      <String fx:value="ERROR" />
+                                                   </FXCollections>
+                                                </items>
+                                             </ComboBox>
+                                          </children>
+                                       </HBox>
+                                    </children>
+                                 </VBox>
+                              </children>
+                           </VBox>
+                           
+                           <!-- 填充空间 -->
+                           <Region VBox.vgrow="ALWAYS" />
+                        </children>
+                     </VBox>
+                  </children>
+               </StackPane>
+                  </children>
+               </VBox>
+            </content>
+         </ScrollPane>
+      </children>
+   </HBox>
+   
+   <!-- 底部状态栏 -->
+   <HBox styleClass="bottom-status-bar">
+      <children>
+         <!-- 日志查看器按钮 -->
+         <Button fx:id="toggleStatusButton" onAction="#onToggleStatusClicked" text="📊 查看日志" 
+                 styleClass="btn,btn-secondary,btn-sm" />
+         
+         <Region HBox.hgrow="ALWAYS" />
+         
+         <!-- 状态项 -->
+         <HBox styleClass="status-item">
+            <children>
+               <Label text="📊" styleClass="status-item-icon" />
+               <Label fx:id="operationCountLabel" text="操作次数: 0" styleClass="status-item-text" />
+            </children>
+         </HBox>
+         
+         <HBox styleClass="status-item">
+            <children>
+               <Label text="⏱️" styleClass="status-item-icon" />
+               <Label fx:id="uptimeLabel" text="运行时间: 00:00:00" styleClass="status-item-text" />
+            </children>
+         </HBox>
+      </children>
+   </HBox>
+   
+   <!-- 隐藏式日志区域，仅用于数据存储 -->
+   <TextArea fx:id="statusTextArea" visible="false" managed="false" />
 </VBox>

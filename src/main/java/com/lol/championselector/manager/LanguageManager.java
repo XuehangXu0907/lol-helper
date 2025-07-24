@@ -105,6 +105,13 @@ public class LanguageManager {
         }
     }
     
+    /**
+     * 获取当前ResourceBundle供FXML使用
+     */
+    public ResourceBundle getResourceBundle() {
+        return currentBundle;
+    }
+    
     
     public Locale getCurrentLocale() {
         return currentLocale.get();

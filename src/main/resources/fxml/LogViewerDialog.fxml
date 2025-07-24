@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" 
+      fx:controller="com.lol.championselector.controller.LogViewerDialogController"
+      styleClass="log-viewer-dialog" spacing="0">
+   <children>
+      <!-- Header -->
+      <HBox styleClass="dialog-header">
+         <children>
+            <Label text="📊" styleClass="dialog-icon" />
+            <VBox spacing="2" HBox.hgrow="ALWAYS">
+               <children>
+                  <Label fx:id="dialogTitleLabel" text="%dialog.logViewer.title" styleClass="dialog-title" />
+                  <Label fx:id="logStatsLabel" text="%dialog.logViewer.subtitle" styleClass="dialog-subtitle" />
+               </children>
+            </VBox>
+            <Button fx:id="closeButton" onAction="#onCloseClicked" text="✕" styleClass="close-button" />
+         </children>
+      </HBox>
+      
+      <!-- Toolbar -->
+      <HBox styleClass="log-toolbar" spacing="8" alignment="CENTER_LEFT">
+         <children>
+            <TextField fx:id="searchTextField" promptText="%dialog.logViewer.search" 
+                       styleClass="search-field" prefWidth="200" />
+            <Button fx:id="searchButton" onAction="#onSearchClicked" text="%dialog.logViewer.searchButton" 
+                    styleClass="btn,btn-secondary,btn-sm" />
+            <Button fx:id="clearSearchButton" onAction="#onClearSearchClicked" text="%dialog.logViewer.clearSearch" 
+                    styleClass="btn,btn-secondary,btn-sm" />
+            <Separator orientation="VERTICAL" />
+            <ComboBox fx:id="logLevelFilterComboBox" onAction="#onLogLevelFilterChanged" 
+                      promptText="%dialog.logViewer.logLevel" styleClass="filter-combobox" prefWidth="100" />
+            <Region HBox.hgrow="ALWAYS" />
+            <Button fx:id="copyButton" onAction="#onCopyClicked" text="%dialog.logViewer.copySelected" 
+                    styleClass="btn,btn-secondary,btn-sm" />
+            <Button fx:id="exportButton" onAction="#onExportClicked" text="%dialog.logViewer.exportLog" 
+                    styleClass="btn,btn-secondary,btn-sm" />
+            <Button fx:id="clearLogButton" onAction="#onClearLogClicked" text="%dialog.logViewer.clearLog" 
+                    styleClass="btn,btn-danger,btn-sm" />
+         </children>
+      </HBox>
+      
+      <!-- Content Area -->
+      <ScrollPane fx:id="logScrollPane" fitToWidth="true" VBox.vgrow="ALWAYS" 
+                  styleClass="log-scroll-pane" hbarPolicy="AS_NEEDED" vbarPolicy="AS_NEEDED">
+         <content>
+            <TextArea fx:id="logTextArea" editable="false" wrapText="false"
+                      styleClass="log-text-area" />
+         </content>
+      </ScrollPane>
+      
+      <!-- Footer -->
+      <HBox styleClass="dialog-footer" spacing="8" alignment="CENTER_RIGHT">
+         <children>
+            <CheckBox fx:id="autoScrollCheckBox" selected="true" onAction="#onAutoScrollToggled"
+                      text="%dialog.logViewer.autoScroll" styleClass="auto-scroll-checkbox" />
+            <CheckBox fx:id="wordWrapCheckBox" onAction="#onWordWrapToggled"
+                      text="%dialog.logViewer.wordWrap" styleClass="word-wrap-checkbox" />
+            <Region HBox.hgrow="ALWAYS" />
+            <Label fx:id="statusLabel" text="%dialog.logViewer.realTimeDisplay" styleClass="status-label" />
+            <Button fx:id="refreshButton" onAction="#onRefreshClicked" text="%dialog.logViewer.refresh" 
+                    styleClass="btn,btn-primary,btn-sm" />
+            <Button fx:id="okButton" onAction="#onOkClicked" text="%dialog.logViewer.confirm" 
+                    styleClass="btn,btn-primary" />
+         </children>
+      </HBox>
+   </children>
+   <padding>
+      <Insets top="0" right="0" bottom="0" left="0" />
+   </padding>
+</VBox>

@@ -18,12 +18,26 @@ public class WindowsAutoStartManager {
     
     private final String applicationPath;
     private final String jarPath;
+    private final String currentVersion;
     
     public WindowsAutoStartManager() {
+        this.currentVersion = getCurrentVersion();
         this.applicationPath = getApplicationPath();
         this.jarPath = getJarPath();
+        logger.debug("Current version: {}", currentVersion);
         logger.debug("Application path: {}", applicationPath);
         logger.debug("JAR path: {}", jarPath);
+    }
+    
+    private String getCurrentVersion() {
+        // Try to get version from package
+        String version = getClass().getPackage().getImplementationVersion();
+        if (version != null && !version.isEmpty()) {
+            return version;
+        }
+        
+        // Fallback to current version from pom.xml
+        return "2.2.4";
     }
     
     private String getApplicationPath() {
@@ -40,7 +54,7 @@ public class WindowsAutoStartManager {
                     return Files.list(targetDir)
                             .filter(path -> path.getFileName().toString().endsWith(".jar"))
                             .filter(path -> !path.getFileName().toString().contains("original"))
-                            .filter(path -> path.getFileName().toString().contains("lol-auto-ban-pick-tool"))
+                            .filter(path -> path.getFileName().toString().startsWith("lol-auto-ban-pick-tool"))
                             .findFirst()
                             .map(Path::toString)
                             .orElse(null);
@@ -49,7 +63,7 @@ public class WindowsAutoStartManager {
                 }
             }
             
-            return Paths.get(userDir, "target", "lol-auto-ban-pick-tool-1.0.0-shaded.jar").toString();
+            return Paths.get(userDir, "target", "lol-auto-ban-pick-tool-" + currentVersion + "-shaded.jar").toString();
         } catch (Exception e) {
             logger.error("Failed to determine application path", e);
             return null;
@@ -59,14 +73,29 @@ public class WindowsAutoStartManager {
     private String getJarPath() {
         String userDir = System.getProperty("user.dir");
         
+        // For installed applications, check if we're running from a JAR
+        String classPath = System.getProperty("java.class.path");
+        if (classPath.contains(".jar")) {
+            // Split classpath and find first JAR file
+            String[] paths = classPath.split(System.getProperty("path.separator"));
+            for (String path : paths) {
+                if (path.endsWith(".jar") && path.contains("lol-auto-ban-pick-tool")) {
+                    Path jarPath = Paths.get(path);
+                    if (Files.exists(jarPath)) {
+                        return jarPath.toString();
+                    }
+                }
+            }
+        }
+        
         // Try shaded JAR first (preferred for distribution)
-        Path shadedJar = Paths.get(userDir, "target", "lol-auto-ban-pick-tool-1.0.0-shaded.jar");
+        Path shadedJar = Paths.get(userDir, "target", "lol-auto-ban-pick-tool-" + currentVersion + "-shaded.jar");
         if (Files.exists(shadedJar)) {
             return shadedJar.toString();
         }
         
         // Try regular JAR
-        Path regularJar = Paths.get(userDir, "target", "lol-auto-ban-pick-tool-1.0.0.jar");
+        Path regularJar = Paths.get(userDir, "target", "lol-auto-ban-pick-tool-" + currentVersion + ".jar");
         if (Files.exists(regularJar)) {
             return regularJar.toString();
         }
@@ -77,6 +106,22 @@ public class WindowsAutoStartManager {
             if (Files.exists(appPath)) {
                 return appPath.toString();
             }
+        }
+        
+        // Try to find any matching JAR in target directory
+        try {
+            Path targetDir = Paths.get(userDir, "target");
+            if (Files.exists(targetDir)) {
+                return Files.list(targetDir)
+                        .filter(path -> path.getFileName().toString().endsWith(".jar"))
+                        .filter(path -> !path.getFileName().toString().contains("original"))
+                        .filter(path -> path.getFileName().toString().startsWith("lol-auto-ban-pick-tool"))
+                        .findFirst()
+                        .map(Path::toString)
+                        .orElse(shadedJar.toString());
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to scan target directory for JAR files", e);
         }
         
         // Fallback to expected shaded JAR location

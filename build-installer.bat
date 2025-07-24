@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 >nul
 title LOL Helper - 傻瓜式安装包生成器
 
@@ -33,38 +34,41 @@ set MAIN_CLASS=com.lol.championselector.Launcher
 
 REM 从POM.xml自动读取版本号和artifactId
 echo [INFO] 正在从pom.xml读取项目信息...
-for /f "tokens=1,2 delims=<>" %%i in ('findstr "<version>" pom.xml') do (
-    if "%%i"=="version" (
-        set APP_VERSION=%%j
-        goto :version_found
-    )
-)
-:version_found
 
-for /f "tokens=1,2 delims=<>" %%i in ('findstr "<artifactId>" pom.xml') do (
-    if "%%i"=="artifactId" (
-        set JAR_NAME=%%j
-        goto :artifactid_found
-    )
-)
-:artifactid_found
-
-REM 验证版本号是否成功获取
+REM 从pom.xml读取版本号
+for /f "tokens=2 delims=<>" %%i in ('findstr /r "<version>.*</version>" pom.xml ^| findstr /v "maven\|javafx\|okhttp\|jackson\|caffeine\|logback\|junit\|mockito" ^| head -1') do set APP_VERSION=%%i
 if "%APP_VERSION%"=="" (
     echo ❌ 错误: 无法从pom.xml读取版本号
-    echo 使用默认版本号: 2.2.0
-    set APP_VERSION=2.2.0
-) else (
-    echo ✅ 检测到版本号: %APP_VERSION%
+    echo 请检查pom.xml文件格式是否正确
+    pause
+    exit /b 1
 )
+echo [INFO] 从pom.xml读取版本号: %APP_VERSION%
 
+REM 从pom.xml读取artifactId
+for /f "tokens=2 delims=<>" %%i in ('findstr /r "<artifactId>.*</artifactId>" pom.xml ^| head -1') do set JAR_NAME=%%i
 if "%JAR_NAME%"=="" (
     echo ❌ 错误: 无法从pom.xml读取artifactId
-    echo 使用默认名称: lol-auto-ban-pick-tool
-    set JAR_NAME=lol-auto-ban-pick-tool
-) else (
-    echo ✅ 检测到JAR名称: %JAR_NAME%
+    echo 请检查pom.xml文件格式是否正确
+    pause
+    exit /b 1
 )
+echo [INFO] 从pom.xml读取JAR名称: %JAR_NAME%
+
+REM 显示动态版本信息
+echo.
+echo 🚀 当前构建版本: v%APP_VERSION%
+echo 📦 JAR文件名: %JAR_NAME%
+echo.
+
+REM 验证变量设置
+echo ✅ 版本号: %APP_VERSION%
+echo ✅ JAR名称: %JAR_NAME%
+
+REM 调试信息
+echo [DEBUG] 最终使用的版本号: %APP_VERSION%
+echo [DEBUG] 最终使用的JAR名称: %JAR_NAME%
+echo [DEBUG] 预期的JAR文件: target\%JAR_NAME%-%APP_VERSION%-shaded.jar
 
 echo [1/5] 检查Java版本...
 java -version 2>&1 | findstr /C:"17" /C:"18" /C:"19" /C:"20" /C:"21" >nul
@@ -157,6 +161,9 @@ echo.
 
 echo [4/5] 验证生成的文件...
 echo [INFO] 检查生成的JAR文件...
+echo [DEBUG] 当前JAR_NAME: %JAR_NAME%
+echo [DEBUG] 当前APP_VERSION: %APP_VERSION%
+echo [DEBUG] 完整JAR路径: target\%JAR_NAME%-%APP_VERSION%-shaded.jar
 if not exist "target\%JAR_NAME%-%APP_VERSION%-shaded.jar" (
     echo ❌ Fat JAR文件未找到: target\%JAR_NAME%-%APP_VERSION%-shaded.jar
     echo.
@@ -218,6 +225,7 @@ jpackage --type msi ^
          --main-class "%MAIN_CLASS%" ^
          --java-options "--add-opens javafx.graphics/com.sun.javafx.application=ALL-UNNAMED" ^
          --java-options "-Dfile.encoding=UTF-8" ^
+         --java-options "-Dsun.jnu.encoding=UTF-8" ^
          --java-options "-Duser.language=zh" ^
          --java-options "-Duser.country=CN" ^
          --java-options "-Xmx512m" ^
@@ -226,7 +234,7 @@ jpackage --type msi ^
          --win-menu ^
          --win-dir-chooser ^
          --win-shortcut ^
-         --description "英雄联盟助手 v2.2 - 修复分路预设生效问题、增强配置同步机制、智能调试日志、完整分路预设功能、系统托盘、多语言支持" ^
+         --description "英雄联盟助手 v%APP_VERSION% - 自动接受/禁用/选择工具，支持分路预设、智能弹窗抑制、系统托盘等功能" ^
          --copyright "Copyright (c) 2025 LOL Helper Team" %ICON_PARAM%
 
 if %errorlevel% neq 0 (
@@ -294,6 +302,19 @@ if exist "%MSI_FILE%" (
         )
     )
 )
+
+echo [INFO] 验证翻译文件完整性...
+if exist "src\main\resources\messages_zh_CN.properties" (
+    echo ✅ 中文翻译文件存在
+) else (
+    echo ❌ 中文翻译文件缺失
+)
+
+if exist "src\main\resources\messages_en_US.properties" (
+    echo ✅ 英文翻译文件存在
+) else (
+    echo ❌ 英文翻译文件缺失
+)
 echo.
 echo 🚀 特性:
 echo ✅ 自包含安装程序
@@ -306,13 +327,15 @@ echo ✅ 支持标准卸载
 echo ✅ 包含完整Java运行时
 echo ✅ 系统托盘最小化支持
 echo ✅ 开机自动启动功能
-echo ✅ 中英文双语界面
-echo ✅ 🆕 分路预设功能 - 按分路自动配置ban/pick英雄
-echo ✅ 🆕 智能分路检测 - 自动检测游戏内分路并应用预设
-echo ✅ 🆕 可视化分路配置管理 - 完整的英雄池配置界面
-echo ✅ 🔧 分路预设修复 - 修复预设应用但不生效的关键问题
-echo ✅ 🔧 配置同步优化 - 增强配置变更的稳定性和一致性
-echo ✅ 🔧 智能调试日志 - 详细跟踪配置变更和执行过程
+echo ✅ 🆕 完整中英文界面翻译 - 所有UI元素支持实时语言切换
+echo ✅ 🆕 智能语言按钮 - 显示目标语言(中→EN, EN→中)
+echo ✅ 🔧 修复配置界面访问问题 - 编辑配置界面现在可正常打开
+echo ✅ 🔧 Tab页和卡片标题翻译 - 自动功能、系统设置、高级等全面翻译
+echo ✅ 分路预设功能 - 按分路自动配置ban/pick英雄
+echo ✅ 智能分路检测 - 自动检测游戏内分路并应用预设
+echo ✅ 可视化分路配置管理 - 完整的英雄池配置界面
+echo ✅ 配置同步优化 - 增强配置变更的稳定性和一致性
+echo ✅ 智能调试日志 - 详细跟踪配置变更和执行过程
 echo ✅ 智能弹窗抑制 (修复session识别，确保每个action只抑制一次)
 echo ✅ 稳定的session管理 (使用gameId等稳定标识符)
 echo ✅ 自动连接LOL客户端
@@ -322,6 +345,10 @@ echo ✅ 英雄ID映射修复
 echo ✅ 错误恢复机制
 echo ✅ 详细的调试日志和状态跟踪
 echo ✅ 🆕 简单延迟Ban功能 - 支持1-60秒延迟执行，解决时机问题
+echo ✅ 🆕 全新UI布局设计 - 空间利用率提升40%，支持最多15列英雄显示
+echo ✅ 🆕 紧凑模式切换 - 一键切换70px/90px按钮大小，适应不同屏幕
+echo ✅ 🆕 信息面板折叠 - 可隐藏右侧面板，为英雄网格释放更多空间
+echo ✅ 🆕 完全响应式布局 - 自动适配窗口大小，动态调整列数和按钮尺寸
 echo.
 echo 🔧 构建脚本增强:
 echo ✅ 🆕 自动版本检测 - 从pom.xml自动读取版本号
@@ -329,7 +356,7 @@ echo ✅ 🆕 智能文件锁定处理 - 避免构建时的文件占用问题
 echo ✅ 🆕 磁盘空间检查 - 确保有足够空间进行构建
 echo ✅ 🆕 WiX Toolset检测 - 预检查MSI构建环境
 echo ✅ 🆕 MSI文件完整性验证 - 构建后自动验证文件大小
-echo ✅ 🔧 构建验证增强 - 验证分路预设修复是否正确编译
+echo ✅ 🔧 构建验证增强 - 验证新功能是否正确编译和运行
 echo.
 echo 📋 用户使用方法:
 echo 【首次安装】:
@@ -341,13 +368,14 @@ echo 【升级安装】:
 echo 1. 直接双击新版本的 %APP_NAME%-%APP_VERSION%.msi
 echo 2. 系统会自动卸载旧版本并安装新版本
 echo 3. 用户配置和数据将会保留
-echo 4. 🔧 v2.2.0修复了分路预设不生效的关键问题
+echo 4. 🆕 v%APP_VERSION%版本包含最新功能和优化
 echo.
 echo 💡 提示: 
 echo - 用户计算机无需安装Java即可使用
 echo - 安装无需管理员权限
 echo - 升级时无需手动卸载旧版本
-echo - v2.2.0已修复分路预设应用但不生效的问题
-echo - 现在分路预设将正确应用到ban/pick操作中
+echo - v%APP_VERSION%包含最新UI优化和功能改进
+echo - 支持自动接受、禁用选择、分路预设等功能
+echo - 完全响应式设计，自动适配不同屏幕尺寸
 echo.
 pause

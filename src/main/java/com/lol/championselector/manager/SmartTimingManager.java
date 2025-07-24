@@ -63,23 +63,22 @@ public class SmartTimingManager {
     /**
      * 智能处理Ban操作
      */
-    public void handleSmartBan(int actionId, AutoAcceptConfig.ChampionInfo banChampion, String playerPosition) {
-        handleSmartBan(actionId, banChampion, playerPosition, new HashSet<>());
+    public void handleSmartBan(int actionId, AutoAcceptConfig.ChampionInfo selectedBanChampion, String playerPosition) {
+        handleSmartBan(actionId, selectedBanChampion, playerPosition, new HashSet<>());
     }
     
     /**
-     * 智能处理Ban操作（带已ban英雄列表）
+     * 智能处理Ban操作（接收已选定的英雄）
      */
-    public void handleSmartBan(int actionId, AutoAcceptConfig.ChampionInfo banChampion, String playerPosition, Set<Integer> bannedChampions) {
+    public void handleSmartBan(int actionId, AutoAcceptConfig.ChampionInfo selectedBanChampion, String playerPosition, Set<Integer> bannedChampions) {
         if (!config.getChampionSelect().isSmartTimingEnabled()) {
             // 如果未启用智能时机，直接执行Ban
-            executeBan(actionId, banChampion);
+            executeBan(actionId, selectedBanChampion);
             return;
         }
         
-        AutoAcceptConfig.ChampionInfo selectedBanChampion = selectBanChampion(banChampion, playerPosition, bannedChampions);
         if (selectedBanChampion == null || selectedBanChampion.getChampionId() == null) {
-            logger.warn("No valid ban champion selected for action {}", actionId);
+            logger.warn("No valid ban champion provided for action {}", actionId);
             return;
         }
         
@@ -111,18 +110,17 @@ public class SmartTimingManager {
     }
     
     /**
-     * 智能处理Pick操作
+     * 智能处理Pick操作（接收已选定的英雄）
      */
-    public void handleSmartPick(int actionId, AutoAcceptConfig.ChampionInfo pickChampion, String playerPosition) {
+    public void handleSmartPick(int actionId, AutoAcceptConfig.ChampionInfo selectedPickChampion, String playerPosition) {
         if (!config.getChampionSelect().isSmartTimingEnabled()) {
             // 如果未启用智能时机，直接执行Pick
-            executePick(actionId, pickChampion);
+            executePick(actionId, selectedPickChampion);
             return;
         }
         
-        AutoAcceptConfig.ChampionInfo selectedPickChampion = selectPickChampion(pickChampion, playerPosition);
         if (selectedPickChampion == null || selectedPickChampion.getChampionId() == null) {
-            logger.warn("No valid pick champion selected for action {}", actionId);
+            logger.warn("No valid pick champion provided for action {}", actionId);
             return;
         }
         
@@ -153,100 +151,7 @@ public class SmartTimingManager {
                    actionId, selectedPickChampion, config.getChampionSelect().getPickExecutionDelaySeconds());
     }
     
-    /**
-     * 根据分路选择Ban英雄
-     */
-    private AutoAcceptConfig.ChampionInfo selectBanChampion(AutoAcceptConfig.ChampionInfo defaultBanChampion, String playerPosition) {
-        return selectBanChampion(defaultBanChampion, playerPosition, new HashSet<>());
-    }
-    
-    /**
-     * 根据分路和已ban英雄选择Ban英雄
-     */
-    private AutoAcceptConfig.ChampionInfo selectBanChampion(AutoAcceptConfig.ChampionInfo defaultBanChampion, String playerPosition, Set<Integer> bannedChampions) {
-        // 如果未启用分路预设或没有位置信息，使用默认英雄
-        if (!config.getChampionSelect().isUsePositionBasedSelection() || playerPosition == null) {
-            logger.debug("Position-based selection disabled or no position, using default ban champion");
-            if (defaultBanChampion != null && defaultBanChampion.getChampionId() != null &&
-                !bannedChampions.contains(defaultBanChampion.getChampionId())) {
-                logger.info("Selected default ban champion {} (position-based disabled)", defaultBanChampion);
-                return defaultBanChampion;
-            }
-            logger.warn("Default ban champion {} is already banned", defaultBanChampion);
-            return null;
-        }
-        
-        // 优先级1：从分路配置队列中选择可用英雄
-        AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(playerPosition);
-        if (positionConfig != null) {
-            AutoAcceptConfig.ChampionInfo availableChampion = positionConfig.getAlternateBanChampion(bannedChampions);
-            if (availableChampion != null) {
-                availableChampion.ensureChampionId();
-                logger.info("Selected ban champion {} from position {} queue (smart timing, priority 1, skipping {} banned champions)", 
-                           availableChampion, playerPosition, bannedChampions.size());
-                return availableChampion;
-            }
-            logger.debug("No available champions in position {} ban queue, trying fallback", playerPosition);
-        } else {
-            logger.debug("No position config found for position: {}, trying fallback", playerPosition);
-        }
-        
-        // 优先级2：回退到默认英雄（如果未被ban）
-        if (defaultBanChampion != null && defaultBanChampion.getChampionId() != null &&
-            !bannedChampions.contains(defaultBanChampion.getChampionId())) {
-            logger.info("Using fallback default ban champion {} for position {} (smart timing, priority 2)", 
-                       defaultBanChampion, playerPosition);
-            return defaultBanChampion;
-        }
-        
-        // 优先级3：所有选项都不可用
-        logger.warn("No available ban champion found for position {} - queue exhausted and default banned (banned champions: {})", 
-                   playerPosition, bannedChampions);
-        return null;
-    }
-    
-    /**
-     * 根据分路选择Pick英雄（智能时机管理器版本，暂时保持简化逻辑）
-     */
-    private AutoAcceptConfig.ChampionInfo selectPickChampion(AutoAcceptConfig.ChampionInfo defaultPickChampion, String playerPosition) {
-        if (!config.getChampionSelect().isUsePositionBasedSelection() || playerPosition == null) {
-            logger.debug("Position-based selection disabled or no position, using default pick champion");
-            return defaultPickChampion;
-        }
-        
-        AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(playerPosition);
-        if (positionConfig == null) {
-            logger.debug("No position config found for position: {}, using default", playerPosition);
-            return defaultPickChampion;
-        }
-        
-        // 优先使用分路配置的首选pick英雄
-        AutoAcceptConfig.ChampionInfo preferredPick = positionConfig.getPreferredPickChampion();
-        if (preferredPick != null) {
-            // 确保championId有效
-            preferredPick.ensureChampionId();
-            if (preferredPick.getChampionId() != null) {
-                logger.info("Selected position-based pick champion {} for position {} in smart timing", preferredPick, playerPosition);
-                return preferredPick;
-            } else {
-                logger.warn("Position-based pick champion {} has invalid championId", preferredPick);
-            }
-        }
-        
-        // 如果分路配置中有pick英雄列表，选择第一个有效的
-        if (positionConfig.getPickChampions() != null && !positionConfig.getPickChampions().isEmpty()) {
-            for (AutoAcceptConfig.ChampionInfo pickCandidate : positionConfig.getPickChampions()) {
-                pickCandidate.ensureChampionId();
-                if (pickCandidate.getChampionId() != null) {
-                    logger.info("Selected pick champion {} from position config for {} in smart timing", pickCandidate, playerPosition);
-                    return pickCandidate;
-                }
-            }
-        }
-        
-        logger.debug("No valid position-based pick champion found for position {} in smart timing, using default", playerPosition);
-        return defaultPickChampion;
-    }
+    // 英雄选择逻辑已移至AutoAcceptController，SmartTimingManager只负责时机控制
     
     /**
      * 处理待执行的actions

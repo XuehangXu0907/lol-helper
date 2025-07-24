@@ -18,6 +18,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.nio.charset.StandardCharsets;
+import java.awt.font.FontRenderContext;
+import java.awt.font.GlyphVector;
+import java.awt.geom.Rectangle2D;
 
 public class SystemTrayManager {
     private static final Logger logger = LoggerFactory.getLogger(SystemTrayManager.class);
@@ -33,6 +36,9 @@ public class SystemTrayManager {
     private static final int MAX_RETRIES = 3;
     private boolean forceVisible = false;
     private boolean useChineseText = false; // 是否使用中文文本
+    private boolean chineseFontSupported = false; // 中文字体是否受支持
+    private Font chineseFont = null; // 选择的中文字体
+    private boolean forceEnglishMenu = false; // 强制使用英文菜单
     
     public SystemTrayManager(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -41,6 +47,9 @@ public class SystemTrayManager {
         if (!isSystemTraySupported) {
             logger.warn("System tray is not supported on this platform");
         }
+        
+        // 初始化字体支持检测
+        initializeFontSupport();
     }
     
     public boolean isSupported() {
@@ -77,7 +86,8 @@ public class SystemTrayManager {
             }
             
             PopupMenu popupMenu = createPopupMenu();
-            trayIcon = new TrayIcon(trayImage, "LOL Helper", popupMenu);
+            String appName = LanguageManager.getInstance().getString("app.name");
+            trayIcon = new TrayIcon(trayImage, appName, popupMenu);
             trayIcon.setImageAutoSize(true);
             
             // Force icon to be visible
@@ -97,7 +107,9 @@ public class SystemTrayManager {
             Platform.runLater(() -> {
                 try {
                     Thread.sleep(500); // Wait a bit for the icon to be fully registered
-                    showInfo("LOL Helper", "系统托盘图标已激活");
+                    String title = LanguageManager.getInstance().getString("app.name");
+                    String message = LanguageManager.getInstance().getString("tray.activated");
+                    showInfo(title, message);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                 }
@@ -129,8 +141,14 @@ public class SystemTrayManager {
     
     private void forceIconVisibility() {
         if (trayIcon != null) {
-            // Set tooltip to ensure icon is recognized by Windows - use simple English to avoid encoding issues
-            trayIcon.setToolTip("LOL Helper - League of Legends Assistant");
+            // Set tooltip using LanguageManager for proper localization
+            String appName = LanguageManager.getInstance().getString("app.name");
+            String version = getClass().getPackage().getImplementationVersion();
+            if (version != null) {
+                trayIcon.setToolTip(appName + " v" + version);
+            } else {
+                trayIcon.setToolTip(appName);
+            }
             
             // Try to make icon more visible
             forceVisible = true;
@@ -359,17 +377,37 @@ public class SystemTrayManager {
     private PopupMenu createPopupMenu() {
         PopupMenu popupMenu = new PopupMenu();
         
-        // 根据语言设置选择文本，但优先使用英文避免编码问题
-        String showText = useChineseText ? "Show" : "Show Window";
-        String hideText = useChineseText ? "Hide" : "Hide Window";
-        String exitText = useChineseText ? "Exit" : "Exit";
+        // 获取语言管理器
+        LanguageManager languageManager = LanguageManager.getInstance();
+        boolean useChinese = shouldUseChinese();
+        
+        // 根据字体支持情况获取菜单文本
+        String showText, hideText, exitText;
+        if (useChinese) {
+            showText = languageManager.getString("tray.showWindow");
+            hideText = languageManager.getString("tray.hideWindow");
+            exitText = languageManager.getString("tray.exit");
+            logger.debug("Using Chinese tray menu (font supported)");
+        } else {
+            // 使用英文文本作为回退
+            showText = "Show Window";
+            hideText = "Hide Window";
+            exitText = "Exit";
+            logger.debug("Using English tray menu (font fallback or forced)");
+        }
         
         MenuItem showItem = new MenuItem(showText);
         showItem.addActionListener(e -> Platform.runLater(this::showWindow));
+        if (useChinese && chineseFont != null) {
+            showItem.setFont(chineseFont);
+        }
         popupMenu.add(showItem);
         
         MenuItem hideItem = new MenuItem(hideText);
         hideItem.addActionListener(e -> Platform.runLater(this::hideWindow));
+        if (useChinese && chineseFont != null) {
+            hideItem.setFont(chineseFont);
+        }
         popupMenu.add(hideItem);
         
         popupMenu.addSeparator();
@@ -390,6 +428,9 @@ public class SystemTrayManager {
                 }
             });
         });
+        if (useChinese && chineseFont != null) {
+            exitItem.setFont(chineseFont);
+        }
         popupMenu.add(exitItem);
         
         return popupMenu;
@@ -484,7 +525,9 @@ public class SystemTrayManager {
                     Thread.sleep(100);
                     systemTray.add(trayIcon);
                     logger.info("Tray icon refreshed");
-                    showInfo("LOL Helper", "托盘图标已刷新");
+                    String title = LanguageManager.getInstance().getString("app.name");
+                    String message = LanguageManager.getInstance().getString("tray.refreshed");
+                    showInfo(title, message);
                 }
             } catch (Exception e) {
                 logger.error("Failed to refresh tray icon", e);
@@ -628,7 +671,16 @@ public class SystemTrayManager {
             Platform.runLater(() -> {
                 PopupMenu newMenu = createPopupMenu();
                 trayIcon.setPopupMenu(newMenu);
-                logger.debug("Tray menu language updated to: {}", useChinese ? "Chinese" : "English");
+                
+                // 检查实际使用的语言（可能因为字体不支持而回退到英文）
+                boolean actualUseChinese = shouldUseChinese();
+                String actualLanguage = actualUseChinese ? "Chinese" : "English (fallback)";
+                logger.info("Tray menu language updated to: {}", actualLanguage);
+                
+                // 如果请求中文但实际使用英文，发出警告
+                if (useChinese && !actualUseChinese) {
+                    logger.warn("Chinese tray menu requested but falling back to English due to font rendering issues");
+                }
             });
         }
     }
@@ -651,5 +703,150 @@ public class SystemTrayManager {
         // 这里简化处理，实际中可以使用JOptionPane或其他方式
         logger.info("Exit confirmation requested");
         return 0; // 直接返回确认，可以根据需要修改
+    }
+    
+    /**
+     * 初始化字体支持检测
+     */
+    private void initializeFontSupport() {
+        try {
+            logger.info("Initializing Chinese font support for system tray...");
+            
+            // 获取系统信息
+            String osName = System.getProperty("os.name");
+            String osVersion = System.getProperty("os.version");
+            String defaultEncoding = System.getProperty("file.encoding");
+            logger.debug("System info - OS: {} {}, Encoding: {}", osName, osVersion, defaultEncoding);
+            
+            // 获取系统可用字体
+            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+            String[] fontNames = ge.getAvailableFontFamilyNames();
+            logger.debug("Found {} available fonts in system", fontNames.length);
+            
+            // 中文字体优先级列表
+            String[] chineseFontPriority = {
+                "Microsoft YaHei",  // 微软雅黑
+                "SimSun",           // 宋体
+                "SimHei",           // 黑体
+                "KaiTi",            // 楷体
+                "FangSong",         // 仿宋
+                "Microsoft JhengHei", // 微软正黑体
+                "PMingLiU",         // 新细明体
+                "Dialog",           // 默认字体
+                "SansSerif"         // 无衬线字体
+            };
+            
+            // 寻找可用的中文字体
+            logger.debug("Searching for Chinese fonts in priority order...");
+            for (String fontName : chineseFontPriority) {
+                logger.debug("Testing font: {}", fontName);
+                for (String availableFont : fontNames) {
+                    if (availableFont.equals(fontName)) {
+                        logger.debug("Font {} is available in system", fontName);
+                        Font testFont = new Font(fontName, Font.PLAIN, 12);
+                        if (testChineseFontSupport(testFont)) {
+                            chineseFont = testFont;
+                            chineseFontSupported = true;
+                            logger.info("Successfully found supported Chinese font: {}", fontName);
+                            return;
+                        } else {
+                            logger.debug("Font {} failed Chinese support test", fontName);
+                        }
+                        break; // 找到字体但测试失败，继续下一个
+                    }
+                }
+            }
+            
+            // 如果没有找到专门的中文字体，测试默认字体
+            Font defaultFont = new Font(Font.DIALOG, Font.PLAIN, 12);
+            if (testChineseFontSupport(defaultFont)) {
+                chineseFont = defaultFont;
+                chineseFontSupported = true;
+                logger.info("Using default font for Chinese text support");
+            } else {
+                logger.warn("No suitable Chinese font found, will use English fallback");
+                chineseFontSupported = false;
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error during font support initialization", e);
+            chineseFontSupported = false;
+        }
+    }
+    
+    /**
+     * 测试字体是否支持中文字符渲染
+     */
+    private boolean testChineseFontSupport(Font font) {
+        try {
+            // 测试字符：显示窗口
+            String testText = "显示窗口";
+            
+            // 检查字体是否能显示所有测试字符
+            for (char c : testText.toCharArray()) {
+                if (!font.canDisplay(c)) {
+                    logger.debug("Font {} cannot display character: {}", font.getFontName(), c);
+                    return false;
+                }
+            }
+            
+            // 尝试创建字形向量来进一步验证渲染能力
+            BufferedImage testImage = new BufferedImage(100, 20, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2d = testImage.createGraphics();
+            g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            
+            FontRenderContext frc = g2d.getFontRenderContext();
+            GlyphVector gv = font.createGlyphVector(frc, testText);
+            Rectangle2D bounds = gv.getVisualBounds();
+            
+            g2d.dispose();
+            
+            // 如果字形向量的边界合理，说明字体支持渲染
+            boolean supported = bounds.getWidth() > 0 && bounds.getHeight() > 0;
+            logger.debug("Font {} Chinese support test result: {}", font.getFontName(), supported);
+            
+            return supported;
+            
+        } catch (Exception e) {
+            logger.debug("Font support test failed for {}: {}", font.getFontName(), e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * 检查是否应该使用中文菜单
+     */
+    private boolean shouldUseChinese() {
+        if (forceEnglishMenu) {
+            return false;
+        }
+        
+        LanguageManager languageManager = LanguageManager.getInstance();
+        boolean isChineseLocale = languageManager.getCurrentLanguage() == LanguageManager.Language.CHINESE;
+        
+        return isChineseLocale && chineseFontSupported;
+    }
+    
+    /**
+     * 设置强制使用英文菜单
+     */
+    public void setForceEnglishMenu(boolean forceEnglish) {
+        this.forceEnglishMenu = forceEnglish;
+        
+        // 如果托盘已初始化，重新创建菜单
+        if (isInitialized.get() && trayIcon != null) {
+            Platform.runLater(() -> {
+                PopupMenu newMenu = createPopupMenu();
+                trayIcon.setPopupMenu(newMenu);
+                logger.info("Tray menu switched to: {}", forceEnglish ? "English (forced)" : "Auto");
+            });
+        }
+    }
+    
+    /**
+     * 获取中文字体支持状态
+     */
+    public boolean isChineseFontSupported() {
+        return chineseFontSupported;
     }
 }

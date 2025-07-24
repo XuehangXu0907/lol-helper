@@ -39,6 +39,9 @@ public class AutoAcceptConfig {
     private boolean suppressBanPhasePopup = false; // 抑制Ban阶段弹窗
     private boolean suppressPickPhasePopup = false; // 抑制Pick阶段弹窗
     
+    // System tray menu settings
+    private boolean forceEnglishTrayMenu = false; // 强制使用英文托盘菜单
+    
     public static class ChampionSelectConfig {
         private boolean autoBanEnabled = false;
         private boolean autoPickEnabled = false;
@@ -51,9 +54,17 @@ public class AutoAcceptConfig {
         private int pickExecutionDelaySeconds = 2; // Pick阶段剩余秒数时执行
         private boolean enableHover = true; // 启用hover预选
         
+        // 新增：自动预选功能
+        private boolean autoHoverEnabled = false; // 启用自动预选（进入选人界面时立即亮英雄）
+        
+        // 新增：智能禁用功能
+        private boolean smartBanEnabled = true; // 启用智能禁用（避免禁用队友预选的英雄）
+        
         // 新增：简单延迟执行选项
         private boolean useSimpleDelayBan = true; // 使用简单延迟执行ban（默认启用）
         private int simpleBanDelaySeconds = 25; // 简单延迟执行时间（默认25秒）
+        private boolean useSimpleDelayPick = false; // 使用简单延迟执行pick（默认禁用）
+        private int simplePickDelaySeconds = 25; // 简单延迟执行时间（默认25秒）
         
         // 新增：分路配置
         private boolean usePositionBasedSelection = false; // 启用基于分路的选择
@@ -192,6 +203,22 @@ public class AutoAcceptConfig {
         public void setSimpleBanDelaySeconds(int simpleBanDelaySeconds) { 
             this.simpleBanDelaySeconds = Math.max(1, Math.min(60, simpleBanDelaySeconds)); 
         }
+        
+        public boolean isUseSimpleDelayPick() { return useSimpleDelayPick; }
+        public void setUseSimpleDelayPick(boolean useSimpleDelayPick) { this.useSimpleDelayPick = useSimpleDelayPick; }
+        
+        public int getSimplePickDelaySeconds() { return simplePickDelaySeconds; }
+        public void setSimplePickDelaySeconds(int simplePickDelaySeconds) { 
+            this.simplePickDelaySeconds = Math.max(1, Math.min(60, simplePickDelaySeconds)); 
+        }
+        
+        // 自动预选功能相关
+        public boolean isAutoHoverEnabled() { return autoHoverEnabled; }
+        public void setAutoHoverEnabled(boolean autoHoverEnabled) { this.autoHoverEnabled = autoHoverEnabled; }
+        
+        // 智能禁用功能相关
+        public boolean isSmartBanEnabled() { return smartBanEnabled; }
+        public void setSmartBanEnabled(boolean smartBanEnabled) { this.smartBanEnabled = smartBanEnabled; }
         
         // 分路配置相关
         public boolean isUsePositionBasedSelection() { return usePositionBasedSelection; }
@@ -512,12 +539,245 @@ public class AutoAcceptConfig {
          * 确保championId有效的方法
          */
         public void ensureChampionId() {
-            if (this.championId == null && this.key != null) {
-                this.championId = getChampionIdByKey(this.key);
-                if (this.championId != null) {
-                    logger.debug("Auto-resolved championId {} for key {}", this.championId, this.key);
+            if (this.championId == null && this.key != null && !this.key.trim().isEmpty()) {
+                try {
+                    this.championId = getChampionIdByKey(this.key.trim());
+                    if (this.championId != null) {
+                        logger.debug("Auto-resolved championId {} for key {}", this.championId, this.key);
+                    } else {
+                        logger.warn("Failed to resolve championId for key: {} - trying fallback methods", this.key);
+                        // 尝试备用方法解析championId
+                        this.championId = tryFallbackChampionIdResolution(this.key.trim());
+                        if (this.championId != null) {
+                            logger.info("Successfully resolved championId {} for key {} using fallback method", this.championId, this.key);
+                        } else {
+                            logger.error("All methods failed to resolve championId for key: {}", this.key);
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.error("Error resolving championId for key: {}", this.key, e);
+                    // 即使出现异常，也尝试备用方法
+                    try {
+                        this.championId = tryFallbackChampionIdResolution(this.key.trim());
+                        if (this.championId != null) {
+                            logger.info("Fallback method succeeded for key {} after exception", this.key);
+                        }
+                    } catch (Exception fallbackEx) {
+                        logger.error("Fallback method also failed for key: {}", this.key, fallbackEx);
+                    }
+                }
+            } else if (this.championId == null) {
+                logger.warn("Cannot ensure championId - key is null or empty: '{}'", this.key);
+            }
+        }
+        
+        /**
+         * 备用的championId解析方法
+         */
+        private static Integer tryFallbackChampionIdResolution(String key) {
+            if (key == null || key.trim().isEmpty()) {
+                return null;
+            }
+            
+            // 尝试忽略大小写匹配
+            Map<String, Integer> keyToIdMap = getFallbackChampionMap();
+            
+            // 第一次尝试：完全匹配
+            Integer championId = keyToIdMap.get(key);
+            if (championId != null) {
+                return championId;
+            }
+            
+            // 第二次尝试：忽略大小写匹配
+            for (Map.Entry<String, Integer> entry : keyToIdMap.entrySet()) {
+                if (entry.getKey().equalsIgnoreCase(key)) {
+                    return entry.getValue();
                 }
             }
+            
+            // 第三次尝试：移除特殊字符和空格后匹配
+            String cleanKey = key.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+            for (Map.Entry<String, Integer> entry : keyToIdMap.entrySet()) {
+                String cleanEntryKey = entry.getKey().replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+                if (cleanEntryKey.equals(cleanKey)) {
+                    return entry.getValue();
+                }
+            }
+            
+            return null;
+        }
+        
+        /**
+         * 获取完整的英雄ID映射表（包含更多英雄和别名）
+         */
+        private static Map<String, Integer> getFallbackChampionMap() {
+            Map<String, Integer> keyToIdMap = new HashMap<>();
+            
+            // 添加所有英雄的标准映射
+            keyToIdMap.put("Aatrox", 266);
+            keyToIdMap.put("Ahri", 103);
+            keyToIdMap.put("Akali", 84);
+            keyToIdMap.put("Akshan", 166);
+            keyToIdMap.put("Alistar", 12);
+            keyToIdMap.put("Ammu", 32);
+            keyToIdMap.put("Amumu", 32); // 阿木木的另一种拼写
+            keyToIdMap.put("Anivia", 34);
+            keyToIdMap.put("Annie", 1);
+            keyToIdMap.put("Aphelios", 523);
+            keyToIdMap.put("Ashe", 22);
+            keyToIdMap.put("AurelionSol", 136);
+            keyToIdMap.put("Azir", 268);
+            keyToIdMap.put("Bard", 432);
+            keyToIdMap.put("Belveth", 200);
+            keyToIdMap.put("Blitzcrank", 53);
+            keyToIdMap.put("Brand", 63);
+            keyToIdMap.put("Braum", 201);
+            keyToIdMap.put("Caitlyn", 51);
+            keyToIdMap.put("Camille", 164);
+            keyToIdMap.put("Cassiopeia", 69);
+            keyToIdMap.put("Chogath", 31);
+            keyToIdMap.put("Corki", 42);
+            keyToIdMap.put("Darius", 122);
+            keyToIdMap.put("Diana", 131);
+            keyToIdMap.put("DrMundo", 36);
+            keyToIdMap.put("Draven", 119);
+            keyToIdMap.put("Ekko", 245);
+            keyToIdMap.put("Elise", 60);
+            keyToIdMap.put("Evelynn", 28);
+            keyToIdMap.put("Ezreal", 81);
+            keyToIdMap.put("Fiddlesticks", 9);
+            keyToIdMap.put("Fiora", 114);
+            keyToIdMap.put("Fizz", 105);
+            keyToIdMap.put("Galio", 3);
+            keyToIdMap.put("Gangplank", 41);
+            keyToIdMap.put("Garen", 86);
+            keyToIdMap.put("Gnar", 150);
+            keyToIdMap.put("Gragas", 79);
+            keyToIdMap.put("Graves", 104);
+            keyToIdMap.put("Gwen", 887);
+            keyToIdMap.put("Hecarim", 120);
+            keyToIdMap.put("Heimerdinger", 74);
+            keyToIdMap.put("Illaoi", 420);
+            keyToIdMap.put("Irelia", 39);
+            keyToIdMap.put("Ivern", 427);
+            keyToIdMap.put("Janna", 40);
+            keyToIdMap.put("JarvanIV", 59);
+            keyToIdMap.put("Jax", 24);
+            keyToIdMap.put("Jayce", 126);
+            keyToIdMap.put("Jhin", 202);
+            keyToIdMap.put("Jinx", 222);
+            keyToIdMap.put("Kaisa", 145);
+            keyToIdMap.put("Kalista", 429);
+            keyToIdMap.put("Karma", 43);
+            keyToIdMap.put("Karthus", 30);
+            keyToIdMap.put("Kassadin", 38);
+            keyToIdMap.put("Katarina", 55);
+            keyToIdMap.put("Kayle", 10);
+            keyToIdMap.put("Kayn", 141);
+            keyToIdMap.put("Kennen", 85);
+            keyToIdMap.put("Khazix", 121);
+            keyToIdMap.put("Kindred", 203);
+            keyToIdMap.put("Kled", 240);
+            keyToIdMap.put("KogMaw", 96);
+            keyToIdMap.put("Leblanc", 7);
+            keyToIdMap.put("LeeSin", 64);
+            keyToIdMap.put("Leona", 89);
+            keyToIdMap.put("Lillia", 876);
+            keyToIdMap.put("Lissandra", 127);
+            keyToIdMap.put("Lucian", 236);
+            keyToIdMap.put("Lulu", 117);
+            keyToIdMap.put("Lux", 99);
+            keyToIdMap.put("Malphite", 54);
+            keyToIdMap.put("Malzahar", 90);
+            keyToIdMap.put("Maokai", 57);
+            keyToIdMap.put("MasterYi", 11);
+            keyToIdMap.put("MissFortune", 21);
+            keyToIdMap.put("Mordekaiser", 82);
+            keyToIdMap.put("Morgana", 25);
+            keyToIdMap.put("Nami", 267);
+            keyToIdMap.put("Nasus", 75);
+            keyToIdMap.put("Nautilus", 111);
+            keyToIdMap.put("Neeko", 518);
+            keyToIdMap.put("Nidalee", 76);
+            keyToIdMap.put("Nilah", 895);
+            keyToIdMap.put("Nocturne", 56);
+            keyToIdMap.put("Nunu", 20);
+            keyToIdMap.put("Olaf", 2);
+            keyToIdMap.put("Orianna", 61);
+            keyToIdMap.put("Ornn", 516);
+            keyToIdMap.put("Pantheon", 80);
+            keyToIdMap.put("Poppy", 78);
+            keyToIdMap.put("Pyke", 555);
+            keyToIdMap.put("Qiyana", 246);
+            keyToIdMap.put("Quinn", 133);
+            keyToIdMap.put("Rakan", 497);
+            keyToIdMap.put("Rammus", 33);
+            keyToIdMap.put("RekSai", 421);
+            keyToIdMap.put("Rell", 526);
+            keyToIdMap.put("Renata", 888);
+            keyToIdMap.put("Renekton", 58);
+            keyToIdMap.put("Rengar", 107);
+            keyToIdMap.put("Riven", 92);
+            keyToIdMap.put("Rumble", 68);
+            keyToIdMap.put("Ryze", 13);
+            keyToIdMap.put("Samira", 360);
+            keyToIdMap.put("Sejuani", 113);
+            keyToIdMap.put("Senna", 235);
+            keyToIdMap.put("Seraphine", 147);
+            keyToIdMap.put("Sett", 875);
+            keyToIdMap.put("Shaco", 35);
+            keyToIdMap.put("Shen", 98);
+            keyToIdMap.put("Shyvana", 102);
+            keyToIdMap.put("Singed", 27);
+            keyToIdMap.put("Sion", 14);
+            keyToIdMap.put("Sivir", 15);
+            keyToIdMap.put("Skarner", 72);
+            keyToIdMap.put("Sona", 37);
+            keyToIdMap.put("Soraka", 16);
+            keyToIdMap.put("Swain", 50);
+            keyToIdMap.put("Sylas", 517);
+            keyToIdMap.put("Syndra", 134);
+            keyToIdMap.put("TahmKench", 223);
+            keyToIdMap.put("Taliyah", 163);
+            keyToIdMap.put("Talon", 91);
+            keyToIdMap.put("Taric", 44);
+            keyToIdMap.put("Teemo", 17);
+            keyToIdMap.put("Thresh", 412);
+            keyToIdMap.put("Tristana", 18);
+            keyToIdMap.put("Trundle", 48);
+            keyToIdMap.put("Tryndamere", 23);
+            keyToIdMap.put("TwistedFate", 4);
+            keyToIdMap.put("Twitch", 29);
+            keyToIdMap.put("Udyr", 77);
+            keyToIdMap.put("Urgot", 6);
+            keyToIdMap.put("Varus", 110);
+            keyToIdMap.put("Vayne", 67);
+            keyToIdMap.put("Veigar", 45);
+            keyToIdMap.put("Velkoz", 161);
+            keyToIdMap.put("Vex", 711);
+            keyToIdMap.put("Vi", 254);
+            keyToIdMap.put("Viego", 234);
+            keyToIdMap.put("Viktor", 112);
+            keyToIdMap.put("Vladimir", 8);
+            keyToIdMap.put("Volibear", 106);
+            keyToIdMap.put("Warwick", 19);
+            keyToIdMap.put("Wukong", 62);
+            keyToIdMap.put("Xayah", 498);
+            keyToIdMap.put("Xerath", 101);
+            keyToIdMap.put("XinZhao", 5);
+            keyToIdMap.put("Yasuo", 157);
+            keyToIdMap.put("Yone", 777);
+            keyToIdMap.put("Yorick", 83);
+            keyToIdMap.put("Yuumi", 350);
+            keyToIdMap.put("Zac", 154);
+            keyToIdMap.put("Zed", 238);
+            keyToIdMap.put("Zeri", 221);
+            keyToIdMap.put("Ziggs", 115);
+            keyToIdMap.put("Zilean", 26);
+            keyToIdMap.put("Zoe", 142);
+            keyToIdMap.put("Zyra", 143);
+            
+            return keyToIdMap;
         }
         
         @Override
@@ -535,27 +795,40 @@ public class AutoAcceptConfig {
             try {
                 AutoAcceptConfig config = mapper.readValue(configFile, AutoAcceptConfig.class);
                 logger.info("Loaded configuration from {}", CONFIG_FILE);
+                
+                // 验证和修复配置
+                config.validateAndFixConfiguration();
+                
                 return config;
             } catch (IOException e) {
                 logger.error("Failed to load configuration from {}, using defaults", CONFIG_FILE, e);
+            } catch (Exception e) {
+                logger.error("Error validating configuration from {}, using defaults", CONFIG_FILE, e);
             }
         } else {
             logger.info("Configuration file {} not found, using defaults", CONFIG_FILE);
         }
         
-        return new AutoAcceptConfig();
+        AutoAcceptConfig defaultConfig = new AutoAcceptConfig();
+        defaultConfig.validateAndFixConfiguration();
+        return defaultConfig;
     }
     
     // 保存配置
     public void save() {
-        ObjectMapper mapper = new ObjectMapper();
-        File configFile = new File(CONFIG_FILE);
-        
         try {
+            // 保存前验证配置
+            validateAndFixConfiguration();
+            
+            ObjectMapper mapper = new ObjectMapper();
+            File configFile = new File(CONFIG_FILE);
+            
             mapper.writerWithDefaultPrettyPrinter().writeValue(configFile, this);
             logger.info("Saved configuration to {}", CONFIG_FILE);
         } catch (IOException e) {
             logger.error("Failed to save configuration to {}", CONFIG_FILE, e);
+        } catch (Exception e) {
+            logger.error("Error validating configuration before save", e);
         }
     }
     
@@ -597,6 +870,9 @@ public class AutoAcceptConfig {
     public boolean isSuppressPickPhasePopup() { return suppressPickPhasePopup; }
     public void setSuppressPickPhasePopup(boolean suppressPickPhasePopup) { this.suppressPickPhasePopup = suppressPickPhasePopup; }
     
+    public boolean isForceEnglishTrayMenu() { return forceEnglishTrayMenu; }
+    public void setForceEnglishTrayMenu(boolean forceEnglishTrayMenu) { this.forceEnglishTrayMenu = forceEnglishTrayMenu; }
+    
     // Auto connect getters and setters
     public boolean isAutoConnectEnabled() { return autoConnectEnabled; }
     public void setAutoConnectEnabled(boolean autoConnectEnabled) { this.autoConnectEnabled = autoConnectEnabled; }
@@ -607,6 +883,68 @@ public class AutoAcceptConfig {
     public int getReconnectIntervalSeconds() { return reconnectIntervalSeconds; }
     public void setReconnectIntervalSeconds(int reconnectIntervalSeconds) { 
         this.reconnectIntervalSeconds = Math.max(5, Math.min(60, reconnectIntervalSeconds)); 
+    }
+    
+    /**
+     * 验证和修复配置的方法
+     */
+    public void validateAndFixConfiguration() {
+        logger.debug("Validating and fixing configuration...");
+        
+        try {
+            // 验证基本配置
+            if (championSelect == null) {
+                logger.warn("ChampionSelect config is null, creating default");
+                championSelect = new ChampionSelectConfig();
+            }
+            
+            // 验证英雄配置
+            if (championSelect.getBanChampion() != null) {
+                championSelect.getBanChampion().ensureChampionId();
+            }
+            
+            if (championSelect.getPickChampion() != null) {
+                championSelect.getPickChampion().ensureChampionId();
+            }
+            
+            // 验证分路配置
+            if (championSelect.getPositionConfigs() != null) {
+                for (PositionConfig posConfig : championSelect.getPositionConfigs().values()) {
+                    if (posConfig != null) {
+                        // 验证ban英雄列表
+                        if (posConfig.getBanChampions() != null) {
+                            for (ChampionInfo champion : posConfig.getBanChampions()) {
+                                if (champion != null) {
+                                    champion.ensureChampionId();
+                                }
+                            }
+                        }
+                        
+                        // 验证pick英雄列表
+                        if (posConfig.getPickChampions() != null) {
+                            for (ChampionInfo champion : posConfig.getPickChampions()) {
+                                if (champion != null) {
+                                    champion.ensureChampionId();
+                                }
+                            }
+                        }
+                        
+                        // 验证首选英雄
+                        if (posConfig.getPreferredBanChampion() != null) {
+                            posConfig.getPreferredBanChampion().ensureChampionId();
+                        }
+                        
+                        if (posConfig.getPreferredPickChampion() != null) {
+                            posConfig.getPreferredPickChampion().ensureChampionId();
+                        }
+                    }
+                }
+            }
+            
+            logger.debug("Configuration validation completed successfully");
+        } catch (Exception e) {
+            logger.error("Error during configuration validation", e);
+        }
     }
     
     @Override

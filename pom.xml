@@ -7,11 +7,11 @@
 
     <groupId>com.lol</groupId>
     <artifactId>lol-auto-ban-pick-tool</artifactId>
-    <version>2.2.0</version>
+    <version>2.2.4</version>
     <packaging>jar</packaging>
 
     <name>LOL Helper</name>
-    <description>英雄联盟助手 - 自动接受/禁用/选择工具，支持分路预设、智能弹窗抑制、自动连接重连、系统托盘、多语言等功能</description>
+    <description>英雄联盟助手 - 自动接受/禁用/选择工具，支持分路预设、智能弹窗抑制、自动连接重连、系统托盘、完整中英文界面翻译、修复托盘中文乱码、配置更新UI同步、Pick延迟执行、重置清空功能等</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
