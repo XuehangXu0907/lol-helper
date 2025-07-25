@@ -10,6 +10,7 @@ public class ChampionVersionMapping {
     static {
         Map<String, String> map = new HashMap<>();
         map.put("Mel", "15.2.1");
+        map.put("Yunara", "25.14.1");  // Added Yunara with correct version
         map.put("Ambessa", "14.24.1");
         map.put("Smolder", "14.24.1");
         map.put("Aurora", "14.24.1");
@@ -17,7 +18,7 @@ public class ChampionVersionMapping {
         VERSION_MAP = Collections.unmodifiableMap(map);
     }
     
-    private static final String DEFAULT_VERSION = "14.24.1";
+    private static final String DEFAULT_VERSION = "25.1.1";  // Updated default version for newer champions
     
     public static String getVersion(String championKey) {
         return VERSION_MAP.getOrDefault(championKey, DEFAULT_VERSION);

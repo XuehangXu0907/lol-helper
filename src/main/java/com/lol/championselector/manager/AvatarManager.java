@@ -66,7 +66,8 @@ public class AvatarManager {
             .retryOnConnectionFailure(false) // Disable automatic retry to prevent hanging
             .build();
             
-        this.cacheDirectory = Paths.get("src/main/resources/champion/avatars");
+        // Use user directory for cache to work in packaged applications
+        this.cacheDirectory = Paths.get(System.getProperty("user.home"), ".lol-helper", "avatar-cache");
         this.downloadExecutor = ForkJoinPool.commonPool();
         
         initializeCacheDirectory();
@@ -115,6 +116,24 @@ public class AvatarManager {
         // Perform periodic cache maintenance
         performPeriodicMaintenance();
         
+        // First try to load from JAR resources (highest priority)
+        try {
+            String resourcePath = "/champion/avatars/" + championKey + ".png";
+            var resourceStream = getClass().getResourceAsStream(resourcePath);
+            if (resourceStream != null) {
+                Image image = new Image(resourceStream);
+                if (!image.isError() && !isShuttingDown) {
+                    memoryCache.put(championKey, image);
+                    logger.debug("Loaded avatar from JAR resources: {}", championKey);
+                    return CompletableFuture.completedFuture(image);
+                }
+                resourceStream.close();
+            }
+        } catch (Exception e) {
+            logger.debug("Failed to load avatar from JAR resources for {}: {}", championKey, e.getMessage());
+        }
+        
+        // Then try local file cache
         Path localFile = getCachePath(championKey);
         if (Files.exists(localFile)) {
             return CompletableFuture.supplyAsync(() -> {
@@ -129,6 +148,7 @@ public class AvatarManager {
                         if (!isShuttingDown) {
                             memoryCache.put(championKey, image);
                         }
+                        logger.debug("Loaded avatar from local cache: {}", championKey);
                         return image;
                     }
                 } catch (Exception e) {
@@ -138,6 +158,8 @@ public class AvatarManager {
             }, downloadExecutor);
         }
         
+        // Finally try to download from network (fallback)
+        logger.debug("Avatar not found in JAR or cache, downloading: {}", championKey);
         return downloadAvatarAsync(championKey);
     }
     
