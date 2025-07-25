@@ -7,7 +7,6 @@ import com.lol.championselector.lcu.LCUMonitor;
 import com.lol.championselector.model.Champion;
 import com.lol.championselector.manager.LanguageManager;
 import com.lol.championselector.manager.PopupSuppressionManager;
-import com.lol.championselector.manager.SmartTimingManager;
 import com.lol.championselector.manager.SystemTrayManager;
 import com.lol.championselector.manager.WindowsAutoStartManager;
 import com.lol.championselector.manager.DraftPickEngine;
@@ -102,11 +101,9 @@ public class AutoAcceptController implements Initializable {
     @FXML private Label smartFeaturesLabel;
     
     // Simple delay ban settings
-    @FXML private CheckBox useSimpleDelayBanCheckBox;
     @FXML private Spinner<Integer> simpleBanDelaySpinner;
     
     // Simple delay pick settings
-    @FXML private CheckBox useSimpleDelayPickCheckBox;
     @FXML private Spinner<Integer> simplePickDelaySpinner;
     
     
@@ -160,12 +157,9 @@ public class AutoAcceptController implements Initializable {
     @FXML private Label suppressionStatusLabel;
     
     // Position presets settings
-    @FXML private CheckBox usePositionPresetsCheckBox;
     @FXML private ComboBox<String> positionComboBox;
     @FXML private HBox positionPresetsContainer;
     @FXML private Button editPositionConfigButton;
-    @FXML private Label currentPositionStatusLabel;
-    @FXML private HBox positionPreviewContainer;
     
     // UI Layout elements - Sidebar Navigation
     @FXML private Button autoFunctionNavButton;
@@ -207,7 +201,6 @@ public class AutoAcceptController implements Initializable {
     // Auto reconnect mechanism
     private Timeline autoReconnectTimeline;
     private PopupSuppressionManager popupSuppressionManager;
-    private SmartTimingManager smartTimingManager;
     private DraftPickEngine draftPickEngine;
     private SmartChampionSelector smartChampionSelector;
     private com.lol.championselector.ChampionSelectorApplication application;
@@ -311,14 +304,14 @@ public class AutoAcceptController implements Initializable {
         // 设置检查间隔spinner (秒为单位，范围1-60秒，默认1秒，步长1秒)
         checkIntervalSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 60, 1, 1));
         
-        // 设置简单延迟Ban的spinner
+        // 设置Ban延迟的spinner (1-30秒，默认25秒)
         if (simpleBanDelaySpinner != null) {
-            simpleBanDelaySpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 60, 25, 1));
+            simpleBanDelaySpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 30, 25, 1));
         }
         
-        // 设置简单延迟Pick的spinner
+        // 设置Pick延迟的spinner (1-30秒，默认25秒)
         if (simplePickDelaySpinner != null) {
-            simplePickDelaySpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 60, 25, 1));
+            simplePickDelaySpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 30, 25, 1));
         }
         
         // 初始化分路下拉框
@@ -428,20 +421,11 @@ public class AutoAcceptController implements Initializable {
             forceEnglishTrayMenuCheckBox.setSelected(config.isForceEnglishTrayMenu());
         }
         
-        // Position presets settings
-        if (usePositionPresetsCheckBox != null) {
-            usePositionPresetsCheckBox.setSelected(config.getChampionSelect().isUsePositionBasedSelection());
-        }
+        // Position presets settings - auto-enabled by default
         
-        // Simple delay ban settings
-        if (useSimpleDelayBanCheckBox != null) {
-            useSimpleDelayBanCheckBox.setSelected(config.getChampionSelect().isUseSimpleDelayBan());
-        }
+        // Delay settings
         if (simpleBanDelaySpinner != null) {
             simpleBanDelaySpinner.getValueFactory().setValue(config.getChampionSelect().getSimpleBanDelaySeconds());
-        }
-        if (useSimpleDelayPickCheckBox != null) {
-            useSimpleDelayPickCheckBox.setSelected(config.getChampionSelect().isUseSimpleDelayPick());
         }
         if (simplePickDelaySpinner != null) {
             simplePickDelaySpinner.getValueFactory().setValue(config.getChampionSelect().getSimplePickDelaySeconds());
@@ -457,8 +441,7 @@ public class AutoAcceptController implements Initializable {
         
         updateAutoStartStatus();
         updatePositionPresetsUI();
-        updateSimpleDelayBanUI();
-        updateSimpleDelayPickUI();
+        // Spinners are always enabled now
         
         // 更新队列状态显示
         updateQueueStatusDisplay();
@@ -520,9 +503,10 @@ public class AutoAcceptController implements Initializable {
                 
                 // 创建英雄头像
                 ImageView championAvatar = new ImageView();
-                championAvatar.setFitWidth(32);
-                championAvatar.setFitHeight(32);
+                championAvatar.setFitWidth(24);
+                championAvatar.setFitHeight(24);
                 championAvatar.setPreserveRatio(true);
+                championAvatar.getStyleClass().add("queue-preview-avatar");
                 
                 // 加载英雄头像
                 loadChampionAvatar(championAvatar, champion.getKey());
@@ -533,9 +517,9 @@ public class AutoAcceptController implements Initializable {
                 
                 if (i == currentActivePosition) {
                     // 当前将被选择的英雄高亮显示（添加边框）
-                    championAvatar.setStyle("-fx-effect: dropshadow(gaussian, #4CAF50, 3, 0.8, 0, 0); -fx-border-color: #4CAF50; -fx-border-width: 2px; -fx-border-radius: 3px;");
+                    championAvatar.setStyle("-fx-effect: dropshadow(gaussian, #4CAF50, 2, 0.8, 0, 0); -fx-border-color: #4CAF50; -fx-border-width: 2px; -fx-border-radius: 3px;");
                 } else {
-                    championAvatar.setStyle("-fx-effect: dropshadow(gaussian, #cccccc, 1, 0.5, 0, 0);");
+                    championAvatar.setStyle("-fx-opacity: 0.7;");
                 }
                 
                 banQueuePreview.getChildren().add(championAvatar);
@@ -583,9 +567,10 @@ public class AutoAcceptController implements Initializable {
                 
                 // 创建英雄头像
                 ImageView championAvatar = new ImageView();
-                championAvatar.setFitWidth(32);
-                championAvatar.setFitHeight(32);
+                championAvatar.setFitWidth(24);
+                championAvatar.setFitHeight(24);
                 championAvatar.setPreserveRatio(true);
+                championAvatar.getStyleClass().add("queue-preview-avatar");
                 
                 // 加载英雄头像
                 loadChampionAvatar(championAvatar, champion.getKey());
@@ -596,9 +581,9 @@ public class AutoAcceptController implements Initializable {
                 
                 if (i == currentActivePosition) {
                     // 当前将被选择的英雄高亮显示（添加蓝色边框）
-                    championAvatar.setStyle("-fx-effect: dropshadow(gaussian, #2196F3, 3, 0.8, 0, 0); -fx-border-color: #2196F3; -fx-border-width: 2px; -fx-border-radius: 3px;");
+                    championAvatar.setStyle("-fx-effect: dropshadow(gaussian, #2196F3, 2, 0.8, 0, 0); -fx-border-color: #2196F3; -fx-border-width: 2px; -fx-border-radius: 3px;");
                 } else {
-                    championAvatar.setStyle("-fx-effect: dropshadow(gaussian, #cccccc, 1, 0.5, 0, 0);");
+                    championAvatar.setStyle("-fx-opacity: 0.7;");
                 }
                 
                 pickQueuePreview.getChildren().add(championAvatar);
@@ -793,8 +778,6 @@ public class AutoAcceptController implements Initializable {
                     // 初始化弹窗抑制管理器
                     initializePopupSuppression();
                     
-                    // 初始化智能时机管理器
-                    initializeSmartTimingManager();
                     
                     disconnectButton.setDisable(false);
                 } else {
@@ -844,7 +827,6 @@ public class AutoAcceptController implements Initializable {
                     appendStatus(languageManager.getString("status.connected"));
                     lcuMonitor.startMonitoring();
                     initializePopupSuppression();
-                    initializeSmartTimingManager();
                     disconnectButton.setDisable(false);
                     
                     // 停止重连任务
@@ -971,45 +953,6 @@ public class AutoAcceptController implements Initializable {
         badge.getStyleClass().add(isEnabled ? "success" : "error");
     }
     
-    @FXML
-    private void onUseSimpleDelayBanToggled() {
-        if (useSimpleDelayBanCheckBox != null && config != null) {
-            boolean enabled = useSimpleDelayBanCheckBox.isSelected();
-            config.getChampionSelect().setUseSimpleDelayBan(enabled);
-            saveConfiguration();
-            
-            String status = enabled ? "启用" : "禁用";
-            appendStatus("简单延迟Ban已" + status);
-            
-            // 更新UI状态
-            updateSimpleDelayBanUI();
-        }
-    }
-    
-    /**
-     * 更新简单延迟Ban UI状态
-     */
-    private void updateSimpleDelayBanUI() {
-        if (simpleBanDelaySpinner != null && useSimpleDelayBanCheckBox != null) {
-            boolean enabled = useSimpleDelayBanCheckBox.isSelected();
-            simpleBanDelaySpinner.setDisable(!enabled);
-        }
-    }
-    
-    @FXML
-    private void onUseSimpleDelayPickToggled() {
-        if (useSimpleDelayPickCheckBox != null && config != null) {
-            boolean enabled = useSimpleDelayPickCheckBox.isSelected();
-            config.getChampionSelect().setUseSimpleDelayPick(enabled);
-            saveConfiguration();
-            
-            String status = enabled ? "启用" : "禁用";
-            appendStatus("简单延迟Pick已" + status);
-            
-            // 更新UI状态
-            updateSimpleDelayPickUI();
-        }
-    }
     
     @FXML
     private void onAutoHoverToggled() {
@@ -1035,15 +978,6 @@ public class AutoAcceptController implements Initializable {
         }
     }
     
-    /**
-     * 更新简单延迟Pick UI状态
-     */
-    private void updateSimpleDelayPickUI() {
-        if (simplePickDelaySpinner != null && useSimpleDelayPickCheckBox != null) {
-            boolean enabled = useSimpleDelayPickCheckBox.isSelected();
-            simplePickDelaySpinner.setDisable(!enabled);
-        }
-    }
     
     
     private void updateConnectionStatus(boolean connected) {
@@ -1146,10 +1080,6 @@ public class AutoAcceptController implements Initializable {
                 actionRetryCount.clear();
                 lastSessionId = currentSessionId;
                 
-                // 清空智能时机管理器的待处理actions
-                if (smartTimingManager != null) {
-                    smartTimingManager.clearPendingActionsForSession();
-                }
                 
                 // 获取玩家位置
                 updatePlayerPosition();
@@ -1758,36 +1688,21 @@ public class AutoAcceptController implements Initializable {
             .thenAccept(bannedChampions -> {
                 logger.info("Currently banned champions: {}", bannedChampions);
                 
-                // 三种Ban执行模式
-                if (config.getChampionSelect().isUseSimpleDelayBan()) {
-                    // 模式1：简单延迟执行
-                    handleSimpleDelayBan(actionId, banChampion, bannedChampions);
-                } else if (smartTimingManager != null && config.getChampionSelect().isSmartTimingEnabled()) {
-                    // 模式2：智能时机管理
-                    handleSmartTimingBan(actionId, banChampion, bannedChampions);
-                } else {
-                    // 模式3：立即执行
-                    handleImmediateBan(actionId, banChampion, bannedChampions);
-                }
+                // 使用延迟执行
+                handleDelayBan(actionId, banChampion, bannedChampions);
             })
             .exceptionally(throwable -> {
                 logger.error("Failed to get banned champions, proceeding with default ban", throwable);
                 // 如果获取失败，仍然使用原有逻辑执行
-                if (config.getChampionSelect().isUseSimpleDelayBan()) {
-                    handleSimpleDelayBan(actionId, banChampion, new HashSet<>());
-                } else if (smartTimingManager != null && config.getChampionSelect().isSmartTimingEnabled()) {
-                    handleSmartTimingBan(actionId, banChampion, new HashSet<>());
-                } else {
-                    handleImmediateBan(actionId, banChampion, new HashSet<>());
-                }
+                handleDelayBan(actionId, banChampion, new HashSet<>());
                 return null;
             });
     }
     
     /**
-     * 简单延迟执行Ban
+     * 延迟执行Ban
      */
-    private void handleSimpleDelayBan(int actionId, AutoAcceptConfig.ChampionInfo banChampion, Set<Integer> bannedChampions) {
+    private void handleDelayBan(int actionId, AutoAcceptConfig.ChampionInfo banChampion, Set<Integer> bannedChampions) {
         int delaySeconds = config.getChampionSelect().getSimpleBanDelaySeconds();
         
         // 先选择可用的ban英雄
@@ -1867,9 +1782,9 @@ public class AutoAcceptController implements Initializable {
     }
     
     /**
-     * 简单延迟执行Pick
+     * 延迟执行Pick
      */
-    private void handleSimpleDelayPick(int actionId, AutoAcceptConfig.ChampionInfo pickChampion) {
+    private void handleDelayPick(int actionId, AutoAcceptConfig.ChampionInfo pickChampion) {
         int delaySeconds = config.getChampionSelect().getSimplePickDelaySeconds();
         
         logger.info("[AUTO_PICK] Using simple delay pick for action ID: {} with champion: {} (delay: {}s)", 
@@ -1977,115 +1892,7 @@ public class AutoAcceptController implements Initializable {
         delayTimeline.play();
     }
     
-    /**
-     * 智能时机执行Ban
-     */
-    private void handleSmartTimingBan(int actionId, AutoAcceptConfig.ChampionInfo banChampion, Set<Integer> bannedChampions) {
-        // 先选择可用的ban英雄
-        AutoAcceptConfig.ChampionInfo selectedBanChampion = selectAvailableBanChampion(banChampion, bannedChampions);
-        if (selectedBanChampion == null) {
-            appendStatus("✗ 自动Ban失败：没有可用的英雄（所有英雄已被ban）");
-            markActionFailed(actionId, "Action validation failed");
-            return;
-        }
-        
-        logger.info("Using smart timing for auto-ban action ID: {} with champion: {}", actionId, selectedBanChampion);
-        appendStatus("智能Ban调度：" + selectedBanChampion.toString() + " (等待最佳时机)");
-        
-        // 传递已ban英雄列表给智能时机管理器
-        smartTimingManager.handleSmartBan(actionId, selectedBanChampion, currentPlayerPosition, bannedChampions);
-        
-        // 添加紧急执行机制：如果剩余时间很少，直接执行
-        lcuMonitor.getRemainingTimeInPhase().thenAccept(remainingTime -> {
-            if (remainingTime <= 2) { // 如果剩余时间<=2秒，立即执行
-                logger.warn("Emergency ban execution due to low remaining time: {}s", remainingTime);
-                
-                // 再次获取最新的已ban英雄列表
-                lcuMonitor.getBannedChampions()
-                    .thenAccept(currentBannedChampions -> {
-                        AutoAcceptConfig.ChampionInfo emergencyBanChampion = selectAvailableBanChampion(selectedBanChampion, currentBannedChampions);
-                        if (emergencyBanChampion != null) {
-                            Platform.runLater(() -> appendStatus("紧急Ban执行：" + emergencyBanChampion.toString()));
-                            lcuMonitor.banChampion(emergencyBanChampion.getChampionId(), actionId)
-                                .thenAccept(success -> Platform.runLater(() -> {
-                                    if (success) {
-                                        appendStatus("✓ 紧急Ban成功：" + emergencyBanChampion.toString());
-                                        logger.info("Emergency ban successful for action {}", actionId);
-                                        markActionSuccess(actionId);
-                                        // 显示成功通知
-                                        if (systemTrayManager != null) {
-                                            systemTrayManager.showInfo("LOL助手", "紧急Ban成功：" + emergencyBanChampion.toString());
-                                        }
-                                    } else {
-                                        appendStatus("✗ 紧急Ban失败：" + emergencyBanChampion.toString());
-                                        logger.warn("Emergency ban failed for action {}", actionId);
-                                    }
-                                }));
-                        } else {
-                            Platform.runLater(() -> {
-                                appendStatus("✗ 紧急Ban失败：所有候选英雄已被ban");
-                                logger.warn("No available champion for emergency ban");
-                            });
-                        }
-                    })
-                    .exceptionally(throwable -> {
-                        // 如果获取失败，使用原来选择的英雄
-                        logger.error("Failed to get current banned champions for emergency ban", throwable);
-                        lcuMonitor.banChampion(selectedBanChampion.getChampionId(), actionId)
-                            .thenAccept(success -> Platform.runLater(() -> {
-                                if (success) {
-                                    appendStatus("✓ 紧急Ban成功：" + selectedBanChampion.toString());
-                                    markActionSuccess(actionId);
-                                    // 显示成功通知
-                                    if (systemTrayManager != null) {
-                                        systemTrayManager.showInfo("LOL助手", "紧急Ban成功：" + selectedBanChampion.toString());
-                                    }
-                                } else {
-                                    appendStatus("✗ 紧急Ban失败：" + selectedBanChampion.toString());
-                                }
-                            }));
-                        return null;
-                    });
-            }
-        });
-    }
     
-    /**
-     * 立即执行Ban
-     */
-    private void handleImmediateBan(int actionId, AutoAcceptConfig.ChampionInfo banChampion, Set<Integer> bannedChampions) {
-        // 选择可用的ban英雄
-        AutoAcceptConfig.ChampionInfo selectedBanChampion = selectAvailableBanChampion(banChampion, bannedChampions);
-        if (selectedBanChampion == null) {
-            appendStatus("✗ 自动Ban失败：没有可用的英雄（所有英雄已被ban）");
-            markActionFailed(actionId, "Action validation failed");
-            return;
-        }
-        
-        logger.info("Executing immediate auto-ban for action ID: {} with champion: {}", actionId, selectedBanChampion);
-        appendStatus("正在自动Ban英雄：" + selectedBanChampion.toString() + " (Action ID: " + actionId + ")");
-        
-        lcuMonitor.banChampion(selectedBanChampion.getChampionId(), actionId)
-            .thenAccept(success -> Platform.runLater(() -> {
-                if (success) {
-                    appendStatus("✓ 成功Ban英雄：" + selectedBanChampion.toString());
-                    logger.info("Successfully banned champion for action ID: {}", actionId);
-                    markActionSuccess(actionId);
-                } else {
-                    appendStatus("✗ Ban英雄失败：" + selectedBanChampion.toString());
-                    logger.warn("Failed to ban champion for action ID: {}", actionId);
-                    markActionFailed(actionId, "Action execution failed");
-                }
-            }))
-            .exceptionally(throwable -> {
-                Platform.runLater(() -> {
-                    appendStatus("✗ Ban英雄异常：" + throwable.getMessage());
-                    logger.error("Exception during ban for action ID: " + actionId, throwable);
-                    markActionFailed(actionId, "Action execution exception: " + throwable.getMessage());
-                });
-                return null;
-            });
-    }
     
     /**
      * Handle auto hover functionality when entering champion select
@@ -2373,32 +2180,9 @@ public class AutoAcceptController implements Initializable {
                     logger.info("[AUTO_PICK] Selected champion for pick: {} (ID: {})", 
                                selectedPickChampion, selectedPickChampion.getChampionId());
                     
-                    // 三种Pick执行模式
-                    boolean useSimpleDelay = config.getChampionSelect().isUseSimpleDelayPick();
-                    boolean useSmartTiming = smartTimingManager != null && config.getChampionSelect().isSmartTimingEnabled();
-                    
-                    logger.info("[AUTO_PICK] Execution mode - Simple delay: {}, Smart timing: {}", useSimpleDelay, useSmartTiming);
-                    
-                    if (useSimpleDelay) {
-                        // 模式1：简单延迟执行
-                        logger.info("[AUTO_PICK] Using simple delay pick mode");
-                        handleSimpleDelayPick(actionId, selectedPickChampion);
-                    } else if (useSmartTiming) {
-                        // 模式2：智能时机管理
-                        logger.info("[AUTO_PICK] Using smart timing for auto-pick action ID: {} with champion: {}", actionId, selectedPickChampion);
-                        Platform.runLater(() -> {
-                            appendStatus("♾ 智能Pick调度：" + selectedPickChampion.toString() + " (等待最佳时机)");
-                        });
-                        smartTimingManager.handleSmartPick(actionId, selectedPickChampion, currentPlayerPosition);
-                    } else {
-                        // 模式3：传统的立即执行方式
-                        logger.info("[AUTO_PICK] Executing immediate auto-pick for action ID: {} with champion: {}", actionId, selectedPickChampion);
-                        Platform.runLater(() -> {
-                            appendStatus("⚡ 正在自动Pick英雄：" + selectedPickChampion.toString() + " (Action ID: " + actionId + ")");
-                        });
-                        
-                        executeImmediatePick(actionId, selectedPickChampion);
-                    }
+                    // 使用延迟执行
+                    logger.info("[AUTO_PICK] Using delay pick mode");
+                    handleDelayPick(actionId, selectedPickChampion);
                 } catch (Exception e) {
                     logger.error("[AUTO_PICK] Error processing banned/picked champions", e);
                     Platform.runLater(() -> {
@@ -2426,63 +2210,11 @@ public class AutoAcceptController implements Initializable {
                 
                 logger.info("[AUTO_PICK] Using fallback pick with original champion: {}", pickChampion);
                 
-                if (smartTimingManager != null && config.getChampionSelect().isSmartTimingEnabled()) {
-                    smartTimingManager.handleSmartPick(actionId, pickChampion, currentPlayerPosition);
-                } else {
-                    executeImmediatePick(actionId, pickChampion);
-                }
+                handleDelayPick(actionId, pickChampion);
                 return null;
             });
     }
     
-    /**
-     * 立即执行pick操作的方法
-     */
-    private void executeImmediatePick(int actionId, AutoAcceptConfig.ChampionInfo champion) {
-        logger.info("[AUTO_PICK] Executing immediate pick for action ID: {} with champion: {} (ID: {})", 
-                   actionId, champion, champion.getChampionId());
-        
-        // 验证LCU连接状态
-        if (!validateLCUConnection("立即Pick")) {
-            markActionFailed(actionId, "Action validation failed");
-            return;
-        }
-        
-        if (champion.getChampionId() == null) {
-            logger.error("[AUTO_PICK] Cannot execute pick - champion ID is null");
-            Platform.runLater(() -> {
-                appendStatus("✗ Pick英雄失败：英雄ID无效");
-            });
-            markActionFailed(actionId, "Action validation failed");
-            return;
-        }
-        
-        lcuMonitor.pickChampion(champion.getChampionId(), actionId)
-            .thenAccept(success -> Platform.runLater(() -> {
-                if (success) {
-                    appendStatus("✓ 成功Pick英雄：" + champion.toString());
-                    logger.info("[AUTO_PICK] Successfully picked champion for action ID: {}", actionId);
-                    markActionSuccess(actionId);
-                    
-                    // 显示成功通知
-                    if (systemTrayManager != null) {
-                        systemTrayManager.showInfo("LOL助手", "成功Pick英雄：" + champion.toString());
-                    }
-                } else {
-                    appendStatus("✗ Pick英雄失败：" + champion.toString());
-                    logger.warn("[AUTO_PICK] Failed to pick champion for action ID: {}", actionId);
-                    markActionFailed(actionId, "Action execution failed");
-                }
-            }))
-            .exceptionally(throwable -> {
-                Platform.runLater(() -> {
-                    appendStatus("✗ Pick英雄异常：" + throwable.getMessage());
-                    logger.error("[AUTO_PICK] Exception during pick for action ID: " + actionId, throwable);
-                    markActionFailed(actionId, "Action execution exception: " + throwable.getMessage());
-                });
-                return null;
-            });
-    }
     
     /**
      * 验证LCU连接状态的方法
@@ -2739,9 +2471,6 @@ public class AutoAcceptController implements Initializable {
     }
 
     public void shutdown() {
-        if (smartTimingManager != null) {
-            smartTimingManager.shutdown();
-        }
         if (popupSuppressionManager != null) {
             popupSuppressionManager.shutdown();
         }
@@ -2816,8 +2545,6 @@ public class AutoAcceptController implements Initializable {
         if (autoAcceptCheckBox != null) autoAcceptCheckBox.setText(languageManager.getString("checkbox.enableAutoAccept"));
         if (autoBanCheckBox != null) autoBanCheckBox.setText(languageManager.getString("championSelection.autoBan"));
         if (autoPickCheckBox != null) autoPickCheckBox.setText(languageManager.getString("championSelection.autoPick"));
-        if (usePositionPresetsCheckBox != null) usePositionPresetsCheckBox.setText(languageManager.getString("checkbox.enablePositionPresets"));
-        if (useSimpleDelayBanCheckBox != null) useSimpleDelayBanCheckBox.setText(languageManager.getString("checkbox.simpleDelayExecution"));
         
         // Update smart features checkboxes
         if (autoHoverCheckBox != null) autoHoverCheckBox.setText(languageManager.getString("smartFeatures.autoHover"));
@@ -2876,10 +2603,6 @@ public class AutoAcceptController implements Initializable {
         // Update buttons (with null checks)
         if (editPositionConfigButton != null) editPositionConfigButton.setText(languageManager.getString("button.editConfig"));
         
-        // Update position status
-        if (currentPositionStatusLabel != null && (currentPlayerPosition == null || currentPlayerPosition.isEmpty())) {
-            currentPositionStatusLabel.setText(languageManager.getString("queue.notDetected"));
-        }
         
         // Update auto start status label text
         updateAutoStartStatus();
@@ -2999,22 +2722,6 @@ public class AutoAcceptController implements Initializable {
     
     // === 弹窗抑制相关方法 ===
     
-    /**
-     * 初始化智能时机管理器
-     */
-    private void initializeSmartTimingManager() {
-        if (lcuMonitor != null && config != null) {
-            try {
-                smartTimingManager = new SmartTimingManager(lcuMonitor, config);
-                smartTimingManager.start();
-                appendStatus("✓ 智能时机控制已启用");
-                logger.info("智能时机管理器初始化成功");
-            } catch (Exception e) {
-                logger.error("初始化智能时机管理器失败", e);
-                appendStatus("⚠ 智能时机控制初始化失败");
-            }
-        }
-    }
     
     /**
      * 初始化弹窗抑制管理器
@@ -3157,31 +2864,6 @@ public class AutoAcceptController implements Initializable {
     
     // === 分路预设相关方法 ===
     
-    /**
-     * 分路预设开关切换事件处理
-     */
-    @FXML
-    private void onUsePositionPresetsToggled() {
-        if (usePositionPresetsCheckBox != null && config != null) {
-            boolean enabled = usePositionPresetsCheckBox.isSelected();
-            config.getChampionSelect().setUsePositionBasedSelection(enabled);
-            saveConfiguration();
-            
-            String status = enabled ? "启用" : "禁用";
-            appendStatus("分路预设功能已" + status);
-            
-            // 更新UI状态
-            updatePositionPresetsUI();
-            
-            // 如果启用且有当前位置，立即应用配置
-            if (enabled && currentPlayerPosition != null) {
-                applyPositionPresets(currentPlayerPosition);
-            }
-            
-            // 更新队列状态显示
-            updateQueueStatusDisplay();
-        }
-    }
     
     /**
      * 分路选择变化事件处理
@@ -3192,10 +2874,6 @@ public class AutoAcceptController implements Initializable {
             String selectedPosition = positionComboBox.getValue();
             if (selectedPosition != null && config.getChampionSelect().isUsePositionBasedSelection()) {
                 applyPositionPresets(selectedPosition);
-            } else if (selectedPosition != null) {
-                // 仅更新预览，不应用配置
-                AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(selectedPosition);
-                updatePositionPreview(positionConfig);
             }
             
             // 更新队列状态显示
@@ -3248,13 +2926,15 @@ public class AutoAcceptController implements Initializable {
      * 更新分路预设UI状态
      */
     private void updatePositionPresetsUI() {
-        if (positionPresetsContainer != null && usePositionPresetsCheckBox != null) {
-            boolean enabled = usePositionPresetsCheckBox.isSelected();
-            positionPresetsContainer.setDisable(!enabled);
-            
-            if (enabled && currentPlayerPosition != null) {
+        // Position presets are always enabled
+        if (positionComboBox != null) {
+            positionComboBox.setDisable(false);
+            if (currentPlayerPosition != null) {
                 positionComboBox.setValue(currentPlayerPosition);
             }
+        }
+        if (editPositionConfigButton != null) {
+            editPositionConfigButton.setDisable(false);
         }
     }
     
@@ -3262,24 +2942,15 @@ public class AutoAcceptController implements Initializable {
      * 更新分路状态UI显示
      */
     private void updatePositionStatusUI(String position) {
-        if (currentPositionStatusLabel != null) {
-            if (position != null) {
-                String translatedPosition = translatePosition(position);
-                currentPositionStatusLabel.setText(languageManager.getString("queue.current") + ": " + translatedPosition);
-                currentPositionStatusLabel.setStyle("-fx-text-fill: #4CAF50;");
-                
-                // 自动选择对应的分路
-                if (positionComboBox != null) {
-                    positionComboBox.setValue(position);
-                }
-            } else {
-                currentPositionStatusLabel.setText(languageManager.getString("queue.notDetected"));
-                currentPositionStatusLabel.setStyle("-fx-text-fill: #9E9E9E;");
-                
-                // 当未检测到分路时，自动回退到全局设置
-                if (positionComboBox != null) {
-                    positionComboBox.setValue("global");
-                }
+        if (position != null) {
+            // 自动选择对应的分路
+            if (positionComboBox != null) {
+                positionComboBox.setValue(position);
+            }
+        } else {
+            // 当未检测到分路时，自动回退到全局设置
+            if (positionComboBox != null) {
+                positionComboBox.setValue("global");
             }
         }
     }
@@ -3332,104 +3003,11 @@ public class AutoAcceptController implements Initializable {
             saveConfiguration();
             appendStatus(java.text.MessageFormat.format(languageManager.getString("queue.applied"), translatePosition(position)));
             logger.info("Applied position presets for: {}", position);
-            
-            // 更新分路预设预览
-            updatePositionPreview(positionConfig);
         } else {
             logger.debug("No position config found for: {}", position);
-            // 清空预览
-            updatePositionPreview(null);
         }
     }
     
-    /**
-     * 更新分路预设预览显示
-     */
-    private void updatePositionPreview(AutoAcceptConfig.PositionConfig positionConfig) {
-        if (positionPreviewContainer == null) {
-            return;
-        }
-        
-        Platform.runLater(() -> {
-            positionPreviewContainer.getChildren().clear();
-            
-            if (positionConfig == null) {
-                Label noPresetLabel = new Label("当前分路暂无预设");
-                noPresetLabel.setStyle("-fx-text-fill: #999999;");
-                positionPreviewContainer.getChildren().add(noPresetLabel);
-                return;
-            }
-            
-            // Ban英雄预览
-            VBox banPreview = new VBox(3);
-            banPreview.setAlignment(javafx.geometry.Pos.CENTER);
-            Label banLabel = new Label("Ban");
-            banLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #666666;");
-            
-            HBox banChampions = new HBox(5);
-            banChampions.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-            List<AutoAcceptConfig.ChampionInfo> banList = positionConfig.getBanChampions();
-            if (banList != null && !banList.isEmpty()) {
-                for (int i = 0; i < Math.min(3, banList.size()); i++) {
-                    ImageView avatar = new ImageView();
-                    avatar.setFitWidth(32);
-                    avatar.setFitHeight(32);
-                    avatar.setPreserveRatio(true);
-                    loadChampionAvatar(avatar, banList.get(i).getKey());
-                    banChampions.getChildren().add(avatar);
-                }
-                if (banList.size() > 3) {
-                    Label moreLabel = new Label("+" + (banList.size() - 3));
-                    moreLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #999999;");
-                    banChampions.getChildren().add(moreLabel);
-                }
-            } else {
-                Label noBanLabel = new Label("无");
-                noBanLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #999999;");
-                banChampions.getChildren().add(noBanLabel);
-            }
-            
-            banPreview.getChildren().addAll(banLabel, banChampions);
-            
-            // Pick英雄预览
-            VBox pickPreview = new VBox(3);
-            pickPreview.setAlignment(javafx.geometry.Pos.CENTER);
-            Label pickLabel = new Label("Pick");
-            pickLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #666666;");
-            
-            HBox pickChampions = new HBox(5);
-            pickChampions.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-            List<AutoAcceptConfig.ChampionInfo> pickList = positionConfig.getPickChampions();
-            if (pickList != null && !pickList.isEmpty()) {
-                for (int i = 0; i < Math.min(3, pickList.size()); i++) {
-                    ImageView avatar = new ImageView();
-                    avatar.setFitWidth(32);
-                    avatar.setFitHeight(32);
-                    avatar.setPreserveRatio(true);
-                    loadChampionAvatar(avatar, pickList.get(i).getKey());
-                    pickChampions.getChildren().add(avatar);
-                }
-                if (pickList.size() > 3) {
-                    Label moreLabel = new Label("+" + (pickList.size() - 3));
-                    moreLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #999999;");
-                    pickChampions.getChildren().add(moreLabel);
-                }
-            } else {
-                Label noPickLabel = new Label("无");
-                noPickLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #999999;");
-                pickChampions.getChildren().add(noPickLabel);
-            }
-            
-            pickPreview.getChildren().addAll(pickLabel, pickChampions);
-            
-            // 添加分隔线
-            javafx.scene.control.Separator separator = new javafx.scene.control.Separator();
-            separator.setOrientation(javafx.geometry.Orientation.VERTICAL);
-            separator.setPrefHeight(40);
-            
-            positionPreviewContainer.getChildren().addAll(banPreview, separator, pickPreview);
-        });
-    }
     
     /**
      * 增强的自动Ban处理 - 集成Draft Pick分析

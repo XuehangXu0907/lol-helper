@@ -48,11 +48,6 @@ public class AutoAcceptConfig {
         private ChampionInfo banChampion;
         private ChampionInfo pickChampion;
         
-        // 新增：智能时机控制
-        private boolean smartTimingEnabled = true; // 启用智能时机控制
-        private int banExecutionDelaySeconds = 3; // Ban阶段剩余秒数时执行
-        private int pickExecutionDelaySeconds = 2; // Pick阶段剩余秒数时执行
-        private boolean enableHover = true; // 启用hover预选
         
         // 新增：自动预选功能
         private boolean autoHoverEnabled = false; // 启用自动预选（进入选人界面时立即亮英雄）
@@ -60,14 +55,12 @@ public class AutoAcceptConfig {
         // 新增：智能禁用功能
         private boolean smartBanEnabled = true; // 启用智能禁用（避免禁用队友预选的英雄）
         
-        // 新增：简单延迟执行选项
-        private boolean useSimpleDelayBan = true; // 使用简单延迟执行ban（默认启用）
-        private int simpleBanDelaySeconds = 25; // 简单延迟执行时间（默认25秒）
-        private boolean useSimpleDelayPick = false; // 使用简单延迟执行pick（默认禁用）
-        private int simplePickDelaySeconds = 25; // 简单延迟执行时间（默认25秒）
+        // 延迟执行选项
+        private int simpleBanDelaySeconds = 25; // Ban延迟时间（默认25秒）
+        private int simplePickDelaySeconds = 25; // Pick延迟时间（默认25秒）
         
         // 新增：分路配置
-        private boolean usePositionBasedSelection = false; // 启用基于分路的选择
+        private boolean usePositionBasedSelection = true; // 启用基于分路的选择
         private Map<String, PositionConfig> positionConfigs = new HashMap<>();
         
         public ChampionSelectConfig() {
@@ -179,37 +172,16 @@ public class AutoAcceptConfig {
         public ChampionInfo getPickChampion() { return pickChampion; }
         public void setPickChampion(ChampionInfo pickChampion) { this.pickChampion = pickChampion; }
         
-        // 智能时机控制相关
-        public boolean isSmartTimingEnabled() { return smartTimingEnabled; }
-        public void setSmartTimingEnabled(boolean smartTimingEnabled) { this.smartTimingEnabled = smartTimingEnabled; }
         
-        public int getBanExecutionDelaySeconds() { return banExecutionDelaySeconds; }
-        public void setBanExecutionDelaySeconds(int banExecutionDelaySeconds) { 
-            this.banExecutionDelaySeconds = Math.max(1, Math.min(10, banExecutionDelaySeconds)); 
-        }
-        
-        public int getPickExecutionDelaySeconds() { return pickExecutionDelaySeconds; }
-        public void setPickExecutionDelaySeconds(int pickExecutionDelaySeconds) { 
-            this.pickExecutionDelaySeconds = Math.max(1, Math.min(10, pickExecutionDelaySeconds)); 
-        }
-        
-        public boolean isEnableHover() { return enableHover; }
-        public void setEnableHover(boolean enableHover) { this.enableHover = enableHover; }
-        
-        public boolean isUseSimpleDelayBan() { return useSimpleDelayBan; }
-        public void setUseSimpleDelayBan(boolean useSimpleDelayBan) { this.useSimpleDelayBan = useSimpleDelayBan; }
-        
+        // 延迟执行相关
         public int getSimpleBanDelaySeconds() { return simpleBanDelaySeconds; }
         public void setSimpleBanDelaySeconds(int simpleBanDelaySeconds) { 
-            this.simpleBanDelaySeconds = Math.max(1, Math.min(60, simpleBanDelaySeconds)); 
+            this.simpleBanDelaySeconds = Math.max(1, Math.min(30, simpleBanDelaySeconds)); 
         }
-        
-        public boolean isUseSimpleDelayPick() { return useSimpleDelayPick; }
-        public void setUseSimpleDelayPick(boolean useSimpleDelayPick) { this.useSimpleDelayPick = useSimpleDelayPick; }
         
         public int getSimplePickDelaySeconds() { return simplePickDelaySeconds; }
         public void setSimplePickDelaySeconds(int simplePickDelaySeconds) { 
-            this.simplePickDelaySeconds = Math.max(1, Math.min(60, simplePickDelaySeconds)); 
+            this.simplePickDelaySeconds = Math.max(1, Math.min(30, simplePickDelaySeconds)); 
         }
         
         // 自动预选功能相关
