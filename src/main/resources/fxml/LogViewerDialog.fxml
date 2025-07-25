@@ -3,6 +3,8 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.collections.FXCollections?>
+<?import java.lang.String?>
 
 <VBox xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" 
       fx:controller="com.lol.championselector.controller.LogViewerDialogController"
@@ -34,6 +36,19 @@
             <Separator orientation="VERTICAL" />
             <ComboBox fx:id="logLevelFilterComboBox" onAction="#onLogLevelFilterChanged" 
                       promptText="%dialog.logViewer.logLevel" styleClass="filter-combobox" prefWidth="100" />
+            <Separator orientation="VERTICAL" />
+            <Label fx:id="runtimeLogLevelLabel" text="运行日志级别" styleClass="label-primary" />
+            <ComboBox fx:id="runtimeLogLevelComboBox" onAction="#onRuntimeLogLevelChanged" 
+                      promptText="设置级别" styleClass="filter-combobox" prefWidth="100">
+               <items>
+                  <FXCollections fx:factory="observableArrayList">
+                     <String fx:value="INFO" />
+                     <String fx:value="DEBUG" />
+                     <String fx:value="WARN" />
+                     <String fx:value="ERROR" />
+                  </FXCollections>
+               </items>
+            </ComboBox>
             <Region HBox.hgrow="ALWAYS" />
             <Button fx:id="copyButton" onAction="#onCopyClicked" text="%dialog.logViewer.copySelected" 
                     styleClass="btn,btn-secondary,btn-sm" />

@@ -74,19 +74,19 @@ public class AutoAcceptConfig {
         }
         
         private void initializeDefaultPositionConfigs() {
-            // Global configuration - applies to all positions
-            PositionConfig globalConfig = new PositionConfig("global");
-            globalConfig.addBanChampion(new ChampionInfo("Yasuo", "亚索", "疾风剑豪"));
-            globalConfig.addBanChampion(new ChampionInfo("Zed", "劫", "影流之主"));
-            globalConfig.addBanChampion(new ChampionInfo("Katarina", "卡特琳娜", "不祥之刃"));
-            globalConfig.addBanChampion(new ChampionInfo("Akali", "阿卡丽", "离群之刺"));
-            globalConfig.addBanChampion(new ChampionInfo("Darius", "德莱厄斯", "诺克萨斯之手"));
-            globalConfig.addPickChampion(new ChampionInfo("Garen", "盖伦", "德玛西亚之力"));
-            globalConfig.addPickChampion(new ChampionInfo("Annie", "安妮", "黑暗之女"));
-            globalConfig.addPickChampion(new ChampionInfo("Ashe", "艾希", "寒冰射手"));
-            globalConfig.addPickChampion(new ChampionInfo("Soraka", "索拉卡", "众星之子"));
-            globalConfig.addPickChampion(new ChampionInfo("Warwick", "沃里克", "祖安怒兽"));
-            positionConfigs.put("global", globalConfig);
+            // Default configuration - applies to all positions
+            PositionConfig defaultConfig = new PositionConfig("default");
+            defaultConfig.addBanChampion(new ChampionInfo("Yasuo", "亚索", "疾风剑豪"));
+            defaultConfig.addBanChampion(new ChampionInfo("Zed", "劫", "影流之主"));
+            defaultConfig.addBanChampion(new ChampionInfo("Katarina", "卡特琳娜", "不祥之刃"));
+            defaultConfig.addBanChampion(new ChampionInfo("Akali", "阿卡丽", "离群之刺"));
+            defaultConfig.addBanChampion(new ChampionInfo("Darius", "德莱厄斯", "诺克萨斯之手"));
+            defaultConfig.addPickChampion(new ChampionInfo("Garen", "盖伦", "德玛西亚之力"));
+            defaultConfig.addPickChampion(new ChampionInfo("Annie", "安妮", "黑暗之女"));
+            defaultConfig.addPickChampion(new ChampionInfo("Ashe", "艾希", "寒冰射手"));
+            defaultConfig.addPickChampion(new ChampionInfo("Soraka", "索拉卡", "众星之子"));
+            defaultConfig.addPickChampion(new ChampionInfo("Warwick", "沃里克", "祖安怒兽"));
+            positionConfigs.put("default", defaultConfig);
             
             // Top lane
             PositionConfig topConfig = new PositionConfig("top");
@@ -181,7 +181,52 @@ public class AutoAcceptConfig {
         
         public int getSimplePickDelaySeconds() { return simplePickDelaySeconds; }
         public void setSimplePickDelaySeconds(int simplePickDelaySeconds) { 
-            this.simplePickDelaySeconds = Math.max(1, Math.min(30, simplePickDelaySeconds)); 
+            int originalValue = this.simplePickDelaySeconds;
+            this.simplePickDelaySeconds = Math.max(1, Math.min(30, simplePickDelaySeconds));
+            if (this.simplePickDelaySeconds != simplePickDelaySeconds) {
+                System.out.println("Pick delay seconds adjusted from " + simplePickDelaySeconds + " to " + this.simplePickDelaySeconds + " (valid range: 1-30)");
+            }
+        }
+        
+        /**
+         * 验证延迟配置的有效性
+         */
+        public boolean validateDelayConfiguration() {
+            boolean isValid = true;
+            StringBuilder issues = new StringBuilder();
+            
+            if (simpleBanDelaySeconds < 1 || simpleBanDelaySeconds > 30) {
+                issues.append("Ban delay seconds out of range (1-30): ").append(simpleBanDelaySeconds).append("; ");
+                isValid = false;
+            }
+            
+            if (simplePickDelaySeconds < 1 || simplePickDelaySeconds > 30) {
+                issues.append("Pick delay seconds out of range (1-30): ").append(simplePickDelaySeconds).append("; ");
+                isValid = false;
+            }
+            
+            if (!isValid) {
+                System.out.println("Delay configuration validation failed: " + issues);
+            }
+            
+            return isValid;
+        }
+        
+        /**
+         * 修复无效的延迟配置
+         */
+        public void fixDelayConfiguration() {
+            if (simpleBanDelaySeconds < 1 || simpleBanDelaySeconds > 30) {
+                int oldValue = simpleBanDelaySeconds;
+                simpleBanDelaySeconds = Math.max(1, Math.min(30, simpleBanDelaySeconds));
+                System.out.println("Fixed ban delay from " + oldValue + " to " + simpleBanDelaySeconds);
+            }
+            
+            if (simplePickDelaySeconds < 1 || simplePickDelaySeconds > 30) {
+                int oldValue = simplePickDelaySeconds;
+                simplePickDelaySeconds = Math.max(1, Math.min(30, simplePickDelaySeconds));
+                System.out.println("Fixed pick delay from " + oldValue + " to " + simplePickDelaySeconds);
+            }
         }
         
         // 自动预选功能相关
@@ -191,6 +236,13 @@ public class AutoAcceptConfig {
         // 智能禁用功能相关
         public boolean isSmartBanEnabled() { return smartBanEnabled; }
         public void setSmartBanEnabled(boolean smartBanEnabled) { this.smartBanEnabled = smartBanEnabled; }
+        
+        // 简化的配置方法，移除智能时机功能
+        public boolean isSmartTimingEnabled() { return false; } // 禁用智能时机
+        public boolean isUseSimpleDelayPick() { return false; } // 使用基本延迟
+        public int getBanExecutionDelaySeconds() { return simpleBanDelaySeconds; }
+        public int getPickExecutionDelaySeconds() { return simplePickDelaySeconds; }
+        public boolean isEnableHover() { return autoHoverEnabled; }
         
         // 分路配置相关
         public boolean isUsePositionBasedSelection() { return usePositionBasedSelection; }

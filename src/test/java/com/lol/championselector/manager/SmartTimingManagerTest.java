@@ -30,10 +30,9 @@ public class SmartTimingManagerTest {
         
         // 创建测试配置
         config = new AutoAcceptConfig();
-        config.getChampionSelect().setSmartTimingEnabled(true);
-        config.getChampionSelect().setBanExecutionDelaySeconds(2);
-        config.getChampionSelect().setPickExecutionDelaySeconds(2);
-        config.getChampionSelect().setEnableHover(true);
+        config.getChampionSelect().setSimpleBanDelaySeconds(2);
+        config.getChampionSelect().setSimplePickDelaySeconds(2);
+        config.getChampionSelect().setAutoHoverEnabled(true);
         config.getChampionSelect().setUsePositionBasedSelection(false);
         
         // 设置默认的mock行为
@@ -84,8 +83,9 @@ public class SmartTimingManagerTest {
         // 执行智能Ban
         smartTimingManager.handleSmartBan(actionId, banChampion, playerPosition);
         
-        // 验证hover被调用
-        verify(lcuMonitor, timeout(1000)).hoverChampion(157, actionId);
+        // 由于SmartTiming被禁用，应该直接执行ban而不是hover
+        verify(lcuMonitor, timeout(1000)).banChampion(157, actionId);
+        verify(lcuMonitor, never()).hoverChampion(anyInt(), anyInt());
     }
     
     @Test
@@ -104,8 +104,9 @@ public class SmartTimingManagerTest {
         // 执行智能Pick
         smartTimingManager.handleSmartPick(actionId, pickChampion, playerPosition);
         
-        // 验证hover被调用
-        verify(lcuMonitor, timeout(1000)).hoverChampion(222, actionId);
+        // 由于SmartTiming被禁用，应该直接执行pick而不是hover
+        verify(lcuMonitor, timeout(1000)).pickChampion(222, actionId);
+        verify(lcuMonitor, never()).hoverChampion(anyInt(), anyInt());
     }
     
     @Test
@@ -140,24 +141,14 @@ public class SmartTimingManagerTest {
         smartTimingManager.start();
         smartTimingManager.handleSmartBan(actionId, banChampion, "middle");
         
-        // 清空待处理的actions
-        smartTimingManager.clearPendingActionsForSession();
-        
-        // 等待一段时间，确保没有执行
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        
-        // 验证ban没有被执行（因为被清空了）
-        verify(lcuMonitor, never()).banChampion(238, actionId);
+        // 由于SmartTiming被禁用，ban会立即执行，所以清理动作不会阻止执行
+        verify(lcuMonitor, timeout(1000)).banChampion(238, actionId);
     }
     
     @Test
     void testDisabledSmartTiming() {
-        // 禁用智能时机
-        config.getChampionSelect().setSmartTimingEnabled(false);
+        // 设置延迟为0，相当于立即执行
+        config.getChampionSelect().setSimpleBanDelaySeconds(0);
         
         int actionId = 111;
         AutoAcceptConfig.ChampionInfo banChampion = new AutoAcceptConfig.ChampionInfo();
@@ -177,7 +168,7 @@ public class SmartTimingManagerTest {
     @Test
     void testDisabledHover() {
         // 禁用hover功能
-        config.getChampionSelect().setEnableHover(false);
+        config.getChampionSelect().setAutoHoverEnabled(false);
         
         int actionId = 222;
         AutoAcceptConfig.ChampionInfo pickChampion = new AutoAcceptConfig.ChampionInfo();

@@ -29,6 +29,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.Region;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ButtonBar;
 import java.util.List;
 import javafx.stage.Modality;
 import org.slf4j.Logger;
@@ -128,8 +129,6 @@ public class AutoAcceptController implements Initializable {
     @FXML private Label connectionSettingsLabel;
     @FXML private Label popupSuppressionLabel;
     @FXML private Label suppressionDescriptionLabel;
-    @FXML private Label debugSettingsLabel;
-    @FXML private Label logLevelLabel;
     
     @FXML private TextArea statusTextArea;
     // 日志弹窗相关
@@ -161,21 +160,9 @@ public class AutoAcceptController implements Initializable {
     @FXML private HBox positionPresetsContainer;
     @FXML private Button editPositionConfigButton;
     
-    // UI Layout elements - Sidebar Navigation
-    @FXML private Button autoFunctionNavButton;
-    @FXML private Button systemSettingsNavButton;
-    @FXML private Button advancedNavButton;
-    
-    // Content panels
+    // UI Layout elements
     @FXML private ScrollPane contentScrollPane;
-    @FXML private VBox autoFunctionContent;
-    @FXML private VBox systemSettingsContent;
-    @FXML private VBox advancedContent;
     
-    // Navigation text labels
-    @FXML private Label autoFunctionNavText;
-    @FXML private Label systemSettingsNavText;
-    @FXML private Label advancedNavText;
     
     // Status bar elements
     @FXML private Button toggleStatusButton;
@@ -252,15 +239,11 @@ public class AutoAcceptController implements Initializable {
             updateStatusBadges(); // 语言改变时也要更新状态徽章
         });
         
-        // Initialize navigation
-        initializeNavigation();
+        // Initialize UI
+        initializeUI();
     }
     
-    private void initializeNavigation() {
-        // Set default active page (auto function)
-        showContentPanel(autoFunctionContent);
-        updateNavigationState(autoFunctionNavButton);
-        
+    private void initializeUI() {
         // Optimize scroll speed
         optimizeScrollSpeed();
     }
@@ -344,7 +327,7 @@ public class AutoAcceptController implements Initializable {
     private void initializePositionComboBox() {
         if (positionComboBox != null) {
             positionComboBox.getItems().addAll(
-                "global",   // 全局设置
+                "default",  // 默认设置
                 "top",      // 上路
                 "jungle",   // 打野
                 "middle",   // 中路
@@ -362,7 +345,7 @@ public class AutoAcceptController implements Initializable {
                 @Override
                 public String fromString(String string) {
                     // 检查中文翻译
-                    if (string.equals(languageManager.getString("position.global"))) return "global";
+                    if (string.equals(languageManager.getString("position.global"))) return "default";
                     if (string.equals(languageManager.getString("position.top"))) return "top";
                     if (string.equals(languageManager.getString("position.jungle"))) return "jungle";
                     if (string.equals(languageManager.getString("position.middle"))) return "middle";
@@ -372,13 +355,26 @@ public class AutoAcceptController implements Initializable {
                 }
             });
             
-            // 默认选择全局设置
-            positionComboBox.setValue("global");
+            // 默认选择默认设置
+            positionComboBox.setValue("default");
         }
     }
     
     private void loadConfiguration() {
         config = AutoAcceptConfig.load();
+        
+        // 验证和修复延迟配置
+        if (config.getChampionSelect() != null) {
+            if (!config.getChampionSelect().validateDelayConfiguration()) {
+                logger.warn("Invalid delay configuration detected, applying fixes...");
+                config.getChampionSelect().fixDelayConfiguration();
+                saveConfiguration(); // 保存修复后的配置
+            }
+            
+            logger.info("Delay configuration validated - Ban: {}s, Pick: {}s", 
+                       config.getChampionSelect().getSimpleBanDelaySeconds(),
+                       config.getChampionSelect().getSimplePickDelaySeconds());
+        }
         
         // 应用配置到UI
         autoAcceptCheckBox.setSelected(config.isAutoAcceptEnabled());
@@ -635,24 +631,6 @@ public class AutoAcceptController implements Initializable {
         lcuMonitor.setOnChampSelectSessionChanged(this::handleChampSelectSessionChanged);
     }
     
-    // Navigation event handlers
-    @FXML
-    private void onAutoFunctionNavClicked() {
-        showContentPanel(autoFunctionContent);
-        updateNavigationState(autoFunctionNavButton);
-    }
-    
-    @FXML 
-    private void onSystemSettingsNavClicked() {
-        showContentPanel(systemSettingsContent);
-        updateNavigationState(systemSettingsNavButton);
-    }
-    
-    @FXML
-    private void onAdvancedNavClicked() {
-        showContentPanel(advancedContent);
-        updateNavigationState(advancedNavButton);
-    }
     
     @FXML
     private void onToggleStatusClicked() {
@@ -736,33 +714,6 @@ public class AutoAcceptController implements Initializable {
         alert.showAndWait();
     }
     
-    private void showContentPanel(VBox targetPanel) {
-        if (autoFunctionContent != null) autoFunctionContent.setVisible(false);
-        if (systemSettingsContent != null) systemSettingsContent.setVisible(false);
-        if (advancedContent != null) advancedContent.setVisible(false);
-        
-        if (targetPanel != null) {
-            targetPanel.setVisible(true);
-        }
-    }
-    
-    private void updateNavigationState(Button activeButton) {
-        // Remove active class from all nav buttons
-        if (autoFunctionNavButton != null) {
-            autoFunctionNavButton.getStyleClass().remove("active");
-        }
-        if (systemSettingsNavButton != null) {
-            systemSettingsNavButton.getStyleClass().remove("active");
-        }
-        if (advancedNavButton != null) {
-            advancedNavButton.getStyleClass().remove("active");
-        }
-        
-        // Add active class to clicked button
-        if (activeButton != null && !activeButton.getStyleClass().contains("active")) {
-            activeButton.getStyleClass().add("active");
-        }
-    }
     
     @FXML
     private void onConnectClicked() {
@@ -1080,14 +1031,27 @@ public class AutoAcceptController implements Initializable {
                 actionRetryCount.clear();
                 lastSessionId = currentSessionId;
                 
-                
-                // 获取玩家位置
-                updatePlayerPosition();
-                
-                // 处理自动预选功能
-                if (config.getChampionSelect().isAutoHoverEnabled()) {
-                    handleAutoHover(session);
-                }
+                // 获取玩家位置，在位置确认后再处理hover，设置3秒超时
+                updatePlayerPosition()
+                    .orTimeout(3, TimeUnit.SECONDS)
+                    .thenRun(() -> {
+                        // 在分路信息确认后再处理自动预选功能
+                        if (config.getChampionSelect().isAutoHoverEnabled()) {
+                            logger.info("Position confirmed, now handling auto hover for position: {}", currentPlayerPosition);
+                            handleAutoHover(session);
+                        }
+                    })
+                    .exceptionally(throwable -> {
+                        // 超时或其他错误时的处理
+                        logger.warn("Failed to get position within timeout, proceeding with hover using default settings", throwable);
+                        if (config.getChampionSelect().isAutoHoverEnabled()) {
+                            Platform.runLater(() -> {
+                                appendStatus("分路获取超时，使用默认设置进行预选");
+                                handleAutoHover(session);
+                            });
+                        }
+                        return null;
+                    });
             }
             
             // 获取当前召唤师ID
@@ -1787,14 +1751,24 @@ public class AutoAcceptController implements Initializable {
     private void handleDelayPick(int actionId, AutoAcceptConfig.ChampionInfo pickChampion) {
         int delaySeconds = config.getChampionSelect().getSimplePickDelaySeconds();
         
-        logger.info("[AUTO_PICK] Using simple delay pick for action ID: {} with champion: {} (delay: {}s)", 
+        // 验证延迟时间配置
+        if (delaySeconds <= 0) {
+            logger.warn("[AUTO_PICK] Invalid delay seconds: {}, using immediate pick", delaySeconds);
+            performImmediatePick(actionId, pickChampion);
+            return;
+        }
+        
+        logger.info("[AUTO_PICK] Starting delay pick for action ID: {} with champion: {} (delay: {}s)", 
                    actionId, pickChampion, delaySeconds);
         
         Platform.runLater(() -> {
-            appendStatus("⏰ 简单延迟Pick：" + pickChampion.toString() + " (" + delaySeconds + "秒后执行)");
+            appendStatus("⏰ 延迟Pick启动：" + pickChampion.toString() + " (将在" + delaySeconds + "秒后执行)");
         });
         
-        // 使用JavaFX Timeline实现延迟执行
+        // 创建倒计时Timeline，每秒更新一次显示
+        Timeline countdownTimeline = createPickCountdownTimeline(actionId, pickChampion, delaySeconds);
+        
+        // 创建最终执行的Timeline
         Timeline delayTimeline = new Timeline(new KeyFrame(Duration.seconds(delaySeconds), event -> {
             logger.debug("[AUTO_PICK] Delay timer expired, executing pick for action ID: {}", actionId);
             
@@ -1888,11 +1862,111 @@ public class AutoAcceptController implements Initializable {
                 });
         }));
         
+        // 启动倒计时显示和最终执行timeline
+        resourceManager.registerTimeline(countdownTimeline);
         resourceManager.registerTimeline(delayTimeline);
+        countdownTimeline.play();
         delayTimeline.play();
     }
     
+    /**
+     * 创建pick倒计时Timeline，每秒更新显示
+     */
+    private Timeline createPickCountdownTimeline(int actionId, AutoAcceptConfig.ChampionInfo pickChampion, int totalSeconds) {
+        Timeline timeline = new Timeline();
+        
+        for (int i = 1; i <= totalSeconds; i++) {
+            final int secondsLeft = totalSeconds - i;
+            KeyFrame frame = new KeyFrame(Duration.seconds(i), event -> {
+                if (secondsLeft > 0) {
+                    Platform.runLater(() -> {
+                        appendStatus("⏳ 等待Pick " + pickChampion.getNameCn() + " - 还有 " + secondsLeft + " 秒");
+                    });
+                    logger.debug("[AUTO_PICK] Pick countdown for action {}: {} seconds remaining", actionId, secondsLeft);
+                } else {
+                    Platform.runLater(() -> {
+                        appendStatus("⚡ 延迟时间到，即将执行Pick: " + pickChampion.getNameCn());
+                    });
+                    logger.info("[AUTO_PICK] Pick countdown completed for action {}", actionId);
+                }
+            });
+            timeline.getKeyFrames().add(frame);
+        }
+        
+        return timeline;
+    }
     
+    /**
+     * 执行立即Pick（当延迟时间无效时使用）
+     */
+    private void performImmediatePick(int actionId, AutoAcceptConfig.ChampionInfo pickChampion) {
+        logger.info("[AUTO_PICK] Executing immediate pick for action ID: {} with champion: {}", actionId, pickChampion);
+        
+        Platform.runLater(() -> {
+            appendStatus("⚡ 立即执行Pick：" + pickChampion.toString());
+        });
+        
+        // 获取当前banned和picked状态
+        CompletableFuture<Set<Integer>> bannedChampionsFuture = lcuMonitor.getBannedChampions();
+        CompletableFuture<Set<Integer>> pickedChampionsFuture = lcuMonitor.getPickedChampions();
+        
+        CompletableFuture.allOf(bannedChampionsFuture, pickedChampionsFuture)
+            .thenAccept(v -> {
+                try {
+                    Set<Integer> currentBannedChampions = bannedChampionsFuture.join();
+                    Set<Integer> currentPickedChampions = pickedChampionsFuture.join();
+                    
+                    if (currentBannedChampions == null) currentBannedChampions = new HashSet<>();
+                    if (currentPickedChampions == null) currentPickedChampions = new HashSet<>();
+                    
+                    AutoAcceptConfig.ChampionInfo finalPickChampion = selectAvailablePickChampion(pickChampion, currentBannedChampions, currentPickedChampions);
+                    if (finalPickChampion == null) {
+                        logger.warn("[AUTO_PICK] All candidate champions have been banned or picked for immediate pick action {}", actionId);
+                        Platform.runLater(() -> {
+                            appendStatus("✗ 立即Pick失败：所有候选英雄已被ban或pick");
+                        });
+                        markActionFailed(actionId, "Action processing failed");
+                        return;
+                    }
+                    
+                    // 执行pick操作
+                    lcuMonitor.pickChampion(finalPickChampion.getChampionId(), actionId)
+                        .thenAccept(success -> Platform.runLater(() -> {
+                            if (success) {
+                                appendStatus("✓ 立即Pick成功：" + finalPickChampion.toString());
+                                logger.info("[AUTO_PICK] Successfully picked champion immediately for action ID: {}", actionId);
+                                markActionSuccess(actionId);
+                            } else {
+                                appendStatus("✗ 立即Pick失败：" + finalPickChampion.toString());
+                                logger.error("[AUTO_PICK] Failed to pick champion immediately for action ID: {}", actionId);
+                                markActionFailed(actionId, "Action execution failed");
+                            }
+                        }))
+                        .exceptionally(throwable -> {
+                            Platform.runLater(() -> {
+                                appendStatus("✗ 立即Pick异常：" + throwable.getMessage());
+                                logger.error("[AUTO_PICK] Exception during immediate pick for action ID: " + actionId, throwable);
+                                markActionFailed(actionId, "Action execution exception: " + throwable.getMessage());
+                            });
+                            return null;
+                        });
+                } catch (Exception e) {
+                    logger.error("[AUTO_PICK] Error during immediate pick processing for action ID: " + actionId, e);
+                    Platform.runLater(() -> {
+                        appendStatus("✗ 立即Pick处理错误：" + e.getMessage());
+                    });
+                    markActionFailed(actionId, "Action processing failed");
+                }
+            })
+            .exceptionally(throwable -> {
+                logger.error("[AUTO_PICK] Failed to get champion status for immediate pick", throwable);
+                Platform.runLater(() -> {
+                    appendStatus("✗ 获取英雄状态失败：" + throwable.getMessage());
+                });
+                markActionFailed(actionId, "Action processing failed");
+                return null;
+            });
+    }
     
     /**
      * Handle auto hover functionality when entering champion select
@@ -1979,30 +2053,49 @@ public class AutoAcceptController implements Initializable {
      * Get the champion to hover based on current configuration
      */
     private AutoAcceptConfig.ChampionInfo getHoverChampion() {
-        // Use the same logic as pick champion selection for consistency
-        AutoAcceptConfig.ChampionInfo pickChampion = config.getChampionSelect().getPickChampion();
+        logger.debug("Getting hover champion - position based selection: {}, current position: {}", 
+                    config.getChampionSelect().isUsePositionBasedSelection(), currentPlayerPosition);
         
         // If position-based selection is enabled, try to get position-specific champion
         if (config.getChampionSelect().isUsePositionBasedSelection()) {
-            String userSelectedPosition = getUserSelectedPosition();
+            // First try to use the detected current position
+            if (currentPlayerPosition != null && !currentPlayerPosition.equals("default")) {
+                AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(currentPlayerPosition);
+                if (positionConfig != null && !positionConfig.getPickChampions().isEmpty()) {
+                    logger.info("Using position-specific hover champion for position: {}", currentPlayerPosition);
+                    return positionConfig.getPickChampions().get(0);
+                }
+            }
             
-            if (userSelectedPosition != null && !userSelectedPosition.equals("global")) {
+            // Fallback to user selected position
+            String userSelectedPosition = getUserSelectedPosition();
+            if (userSelectedPosition != null && !userSelectedPosition.equals("default")) {
                 AutoAcceptConfig.PositionConfig positionConfig = config.getChampionSelect().getPositionConfig(userSelectedPosition);
                 if (positionConfig != null && !positionConfig.getPickChampions().isEmpty()) {
-                    // Return the first pick champion from the position configuration
+                    logger.info("Using user-selected position hover champion for position: {}", userSelectedPosition);
                     return positionConfig.getPickChampions().get(0);
                 }
             }
         }
         
-        return pickChampion;
+        // Use global pick champion as fallback
+        AutoAcceptConfig.ChampionInfo globalPickChampion = config.getChampionSelect().getPickChampion();
+        logger.info("Using global hover champion: {}", globalPickChampion != null ? globalPickChampion.getNameCn() : "null");
+        return globalPickChampion;
     }
     
     private void handleAutoPick(int actionId) {
+        logger.info("[AUTO_PICK] ===============================================");
         logger.info("[AUTO_PICK] Starting handleAutoPick - Action ID: {}", actionId);
+        logger.info("[AUTO_PICK] Current time: {}", System.currentTimeMillis());
+        logger.info("[AUTO_PICK] Thread: {}", Thread.currentThread().getName());
         
         // 记录详细的配置状态用于调试
         logPickConfigurationStatus(actionId);
+        
+        // 记录游戏状态
+        logger.info("[AUTO_PICK] Current game phase: {}", lcuMonitor != null ? lcuMonitor.getCurrentPhase() : "null");
+        logger.info("[AUTO_PICK] LCU connection status: {}", lcuMonitor != null ? lcuMonitor.isConnected() : "disconnected");
         
         // 检查基本状态
         if (config == null) {
@@ -2180,9 +2273,23 @@ public class AutoAcceptController implements Initializable {
                     logger.info("[AUTO_PICK] Selected champion for pick: {} (ID: {})", 
                                selectedPickChampion, selectedPickChampion.getChampionId());
                     
-                    // 使用延迟执行
-                    logger.info("[AUTO_PICK] Using delay pick mode");
-                    handleDelayPick(actionId, selectedPickChampion);
+                    // 检查延迟配置并决定执行方式
+                    int delaySeconds = config.getChampionSelect().getSimplePickDelaySeconds();
+                    logger.info("[AUTO_PICK] Delay configuration: {} seconds", delaySeconds);
+                    
+                    if (delaySeconds > 0) {
+                        logger.info("[AUTO_PICK] Using delay pick mode with {} seconds delay", delaySeconds);
+                        Platform.runLater(() -> {
+                            appendStatus("🕐 启动延迟Pick模式：" + selectedPickChampion.getNameCn() + " (延迟" + delaySeconds + "秒)");
+                        });
+                        handleDelayPick(actionId, selectedPickChampion);
+                    } else {
+                        logger.info("[AUTO_PICK] Delay is 0 or negative, using immediate pick");
+                        Platform.runLater(() -> {
+                            appendStatus("⚡ 延迟为0，立即执行Pick：" + selectedPickChampion.getNameCn());
+                        });
+                        performImmediatePick(actionId, selectedPickChampion);
+                    }
                 } catch (Exception e) {
                     logger.error("[AUTO_PICK] Error processing banned/picked champions", e);
                     Platform.runLater(() -> {
@@ -2210,7 +2317,23 @@ public class AutoAcceptController implements Initializable {
                 
                 logger.info("[AUTO_PICK] Using fallback pick with original champion: {}", pickChampion);
                 
-                handleDelayPick(actionId, pickChampion);
+                // 同样检查延迟配置
+                int delaySeconds = config.getChampionSelect().getSimplePickDelaySeconds();
+                logger.info("[AUTO_PICK] Fallback delay configuration: {} seconds", delaySeconds);
+                
+                if (delaySeconds > 0) {
+                    logger.info("[AUTO_PICK] Using fallback delay pick with {} seconds", delaySeconds);
+                    Platform.runLater(() -> {
+                        appendStatus("🕐 回退到延迟Pick：" + pickChampion.getNameCn() + " (延迟" + delaySeconds + "秒)");
+                    });
+                    handleDelayPick(actionId, pickChampion);
+                } else {
+                    logger.info("[AUTO_PICK] Fallback delay is 0, using immediate pick");
+                    Platform.runLater(() -> {
+                        appendStatus("⚡ 回退到立即Pick：" + pickChampion.getNameCn());
+                    });
+                    performImmediatePick(actionId, pickChampion);
+                }
                 return null;
             });
     }
@@ -2249,10 +2372,11 @@ public class AutoAcceptController implements Initializable {
     
     /**
      * 更新玩家位置信息
+     * @return CompletableFuture that completes when position update is finished
      */
-    private void updatePlayerPosition() {
+    private CompletableFuture<Void> updatePlayerPosition() {
         if (lcuMonitor != null) {
-            lcuMonitor.getPlayerPosition()
+            return lcuMonitor.getPlayerPosition()
                 .thenAccept(position -> {
                     if (position != null && !position.trim().isEmpty()) {
                         currentPlayerPosition = position;
@@ -2271,7 +2395,7 @@ public class AutoAcceptController implements Initializable {
                         });
                     } else {
                         // 未检测到分路信息，使用全局设置
-                        currentPlayerPosition = "global";
+                        currentPlayerPosition = "default";
                         logger.debug("Player position not available, using global settings");
                         Platform.runLater(() -> {
                             appendStatus("未检测到分路信息，使用全局设置");
@@ -2279,7 +2403,7 @@ public class AutoAcceptController implements Initializable {
                             
                             // 如果启用了分路预设，应用全局配置
                             if (config != null && config.getChampionSelect().isUsePositionBasedSelection()) {
-                                applyPositionPresets("global");
+                                applyPositionPresets("default");
                             }
                             
                             // 更新队列状态显示
@@ -2289,7 +2413,7 @@ public class AutoAcceptController implements Initializable {
                 })
                 .exceptionally(throwable -> {
                     // 连接失败时也使用全局设置
-                    currentPlayerPosition = "global";
+                    currentPlayerPosition = "default";
                     logger.debug("Failed to get player position, using global settings", throwable);
                     Platform.runLater(() -> {
                         appendStatus("未检测到分路信息，使用全局设置");
@@ -2300,6 +2424,16 @@ public class AutoAcceptController implements Initializable {
                     });
                     return null;
                 });
+        } else {
+            // 如果lcuMonitor为null，返回已完成的CompletableFuture
+            currentPlayerPosition = "default";
+            logger.warn("LCU Monitor is null, using default position");
+            Platform.runLater(() -> {
+                appendStatus("未连接到LCU，使用全局设置");
+                updatePositionStatusUI(null);
+                updateQueueStatusDisplay();
+            });
+            return CompletableFuture.completedFuture(null);
         }
     }
     
@@ -2310,7 +2444,7 @@ public class AutoAcceptController implements Initializable {
         if (position == null) return languageManager.getString("common.unknown");
         
         return switch (position.toLowerCase()) {
-            case "global" -> languageManager.getString("position.global");
+            case "default" -> languageManager.getString("position.global");
             case "top" -> languageManager.getString("position.top");
             case "jungle" -> languageManager.getString("position.jungle");
             case "middle" -> languageManager.getString("position.middle");
@@ -2408,6 +2542,23 @@ public class AutoAcceptController implements Initializable {
             if (autoStartManager.isSupported()) {
                 boolean success;
                 if (enabled) {
+                    // First check permissions before attempting to enable
+                    List<WindowsAutoStartManager.PermissionDiagnostic> diagnostics = autoStartManager.diagnosePermissions();
+                    boolean hasPermissionIssues = diagnostics.stream().anyMatch(d -> !d.hasPermission());
+                    
+                    if (hasPermissionIssues) {
+                        autoStartCheckBox.setSelected(false);
+                        appendStatus("权限检查失败，无法启用自动启动:");
+                        for (WindowsAutoStartManager.PermissionDiagnostic diagnostic : diagnostics) {
+                            if (!diagnostic.hasPermission()) {
+                                appendStatus("• " + diagnostic.getIssue());
+                                appendStatus("  解决方案: " + diagnostic.getSolution());
+                            }
+                        }
+                        showPermissionHelpDialog();
+                        return;
+                    }
+                    
                     success = autoStartManager.enableAutoStart();
                     if (success) {
                         config.setAutoStartEnabled(true);
@@ -2415,6 +2566,7 @@ public class AutoAcceptController implements Initializable {
                     } else {
                         autoStartCheckBox.setSelected(false);
                         appendStatus("启用开机自动启动失败，请检查权限设置");
+                        showPermissionHelpDialog();
                     }
                 } else {
                     success = autoStartManager.disableAutoStart();
@@ -2445,9 +2597,89 @@ public class AutoAcceptController implements Initializable {
             appendStatus("JAR 位置: " + jarLocation);
             appendStatus("注册表命令: " + command);
             appendStatus("当前自动启动状态: " + (autoStartManager.isAutoStartEnabled() ? "已启用" : "已禁用"));
+            
+            // Also show permission diagnostic
+            appendStatus("权限诊断:");
+            List<WindowsAutoStartManager.PermissionDiagnostic> diagnostics = autoStartManager.diagnosePermissions();
+            for (WindowsAutoStartManager.PermissionDiagnostic diagnostic : diagnostics) {
+                String status = diagnostic.hasPermission() ? "✓" : "✗";
+                appendStatus(status + " " + diagnostic.getType() + 
+                    (diagnostic.hasPermission() ? "" : " - " + diagnostic.getIssue()));
+            }
         } else {
             appendStatus("当前系统不支持开机自动启动功能");
         }
+    }
+    
+    private void showPermissionHelpDialog() {
+        Platform.runLater(() -> {
+            try {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Auto-Start Permission Issues");
+                alert.setHeaderText("Unable to enable auto-start due to permission issues");
+                
+                String report = autoStartManager.getManualFixInstructions();
+                
+                TextArea textArea = new TextArea(report);
+                textArea.setEditable(false);
+                textArea.setWrapText(true);
+                textArea.setMaxWidth(Double.MAX_VALUE);
+                textArea.setMaxHeight(Double.MAX_VALUE);
+                textArea.setPrefSize(600, 400);
+                
+                ScrollPane scrollPane = new ScrollPane(textArea);
+                scrollPane.setFitToWidth(true);
+                scrollPane.setFitToHeight(true);
+                
+                alert.getDialogPane().setContent(scrollPane);
+                alert.getDialogPane().setPrefSize(650, 500);
+                
+                ButtonType tryFixButton = new ButtonType("Try Auto Fix");
+                ButtonType okButton = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
+                alert.getButtonTypes().setAll(tryFixButton, okButton);
+                
+                alert.showAndWait().ifPresent(buttonType -> {
+                    if (buttonType == tryFixButton) {
+                        performAutoFix();
+                    }
+                });
+                
+            } catch (Exception e) {
+                logger.error("Failed to show permission help dialog", e);
+                appendStatus("Failed to show permission help dialog: " + e.getMessage());
+            }
+        });
+    }
+    
+    private void performAutoFix() {
+        CompletableFuture.supplyAsync(() -> {
+            return autoStartManager.attemptPermissionFixes();
+        }).thenAccept(fixResults -> {
+            Platform.runLater(() -> {
+                appendStatus("Auto-fix results:");
+                for (String result : fixResults) {
+                    appendStatus("• " + result);
+                }
+                
+                // Re-check permissions after fix attempt
+                List<WindowsAutoStartManager.PermissionDiagnostic> diagnostics = autoStartManager.diagnosePermissions();
+                boolean stillHasIssues = diagnostics.stream().anyMatch(d -> !d.hasPermission());
+                
+                if (!stillHasIssues) {
+                    appendStatus("✓ All permission issues resolved! You can now try enabling auto-start again.");
+                } else {
+                    appendStatus("⚠ Some permission issues remain. You may need to run as Administrator.");
+                }
+                
+                updateAutoStartStatus();
+            });
+        }).exceptionally(ex -> {
+            Platform.runLater(() -> {
+                logger.error("Auto-fix failed", ex);
+                appendStatus("Auto-fix failed: " + ex.getMessage());
+            });
+            return null;
+        });
     }
     
     private void updateAutoStartStatus() {
@@ -2587,13 +2819,7 @@ public class AutoAcceptController implements Initializable {
         if (connectionSettingsLabel != null) connectionSettingsLabel.setText(languageManager.getString("card.connectionSettings"));
         if (popupSuppressionLabel != null) popupSuppressionLabel.setText(languageManager.getString("card.popupSuppression"));
         if (suppressionDescriptionLabel != null) suppressionDescriptionLabel.setText(languageManager.getString("label.suppressionDescription"));
-        if (debugSettingsLabel != null) debugSettingsLabel.setText(languageManager.getString("card.debugSettings"));
-        if (logLevelLabel != null) logLevelLabel.setText(languageManager.getString("label.logLevel"));
         
-        // Update navigation texts (with null checks)
-        if (autoFunctionNavText != null) autoFunctionNavText.setText(languageManager.getString("tab.autoFunction"));
-        if (systemSettingsNavText != null) systemSettingsNavText.setText(languageManager.getString("tab.systemSettings"));
-        if (advancedNavText != null) advancedNavText.setText(languageManager.getString("tab.advanced"));
         
         // Update card titles (with null checks)
         if (autoAcceptCardTitle != null) autoAcceptCardTitle.setText(languageManager.getString("card.autoAcceptTitle"));
@@ -2950,7 +3176,7 @@ public class AutoAcceptController implements Initializable {
         } else {
             // 当未检测到分路时，自动回退到全局设置
             if (positionComboBox != null) {
-                positionComboBox.setValue("global");
+                positionComboBox.setValue("default");
             }
         }
     }

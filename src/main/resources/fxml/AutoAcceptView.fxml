@@ -46,72 +46,17 @@
    </HBox>
    
    <!-- 主内容区域 -->
-   <HBox styleClass="main-content-container" VBox.vgrow="ALWAYS">
-      <children>
-         <!-- 侧边导航栏 -->
-         <VBox styleClass="sidebar">
+   <ScrollPane fx:id="contentScrollPane" styleClass="content-scroll-pane" VBox.vgrow="ALWAYS" fitToWidth="true" 
+               hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" pannable="true">
+      <content>
+         <VBox styleClass="content-area">
             <children>
-               <!-- 自动功能导航项 -->
-               <Button fx:id="autoFunctionNavButton" onAction="#onAutoFunctionNavClicked"
-                       styleClass="nav-item,active" alignment="CENTER_LEFT">
-                  <graphic>
-                     <HBox spacing="12" alignment="CENTER_LEFT">
-                        <children>
-                           <Label text="⚡" styleClass="nav-item-icon" />
-                           <Label fx:id="autoFunctionNavText" text="自动功能" styleClass="nav-item-text" />
-                        </children>
-                     </HBox>
-                  </graphic>
-               </Button>
-               
-               <!-- 系统设置导航项 -->
-               <Button fx:id="systemSettingsNavButton" onAction="#onSystemSettingsNavClicked"
-                       styleClass="nav-item" alignment="CENTER_LEFT">
-                  <graphic>
-                     <HBox spacing="12" alignment="CENTER_LEFT">
-                        <children>
-                           <Label text="⚙️" styleClass="nav-item-icon" />
-                           <Label fx:id="systemSettingsNavText" text="系统设置" styleClass="nav-item-text" />
-                        </children>
-                     </HBox>
-                  </graphic>
-               </Button>
-               
-               <!-- 高级设置导航项 -->
-               <Button fx:id="advancedNavButton" onAction="#onAdvancedNavClicked"
-                       styleClass="nav-item" alignment="CENTER_LEFT">
-                  <graphic>
-                     <HBox spacing="12" alignment="CENTER_LEFT">
-                        <children>
-                           <Label text="🔧" styleClass="nav-item-icon" />
-                           <Label fx:id="advancedNavText" text="高级设置" styleClass="nav-item-text" />
-                        </children>
-                     </HBox>
-                  </graphic>
-               </Button>
-            </children>
-         </VBox>
-         
-         <!-- 主内容区域 -->
-         <ScrollPane fx:id="contentScrollPane" styleClass="content-scroll-pane" HBox.hgrow="ALWAYS" fitToWidth="true" 
-                     hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" pannable="true">
-            <content>
-               <VBox styleClass="content-area">
-                  <children>
-                     <!-- 内容容器，通过StackPane切换不同页面 -->
-                     <StackPane fx:id="contentStackPane">
-                  <children>
-                     <!-- 自动功能页面 -->
-                     <VBox fx:id="autoFunctionContent" styleClass="content-page">
+               <!-- 主内容区域 -->
+               <VBox styleClass="content-page">
                         <children>
                            <!-- 自动化与智能功能组 -->
                            <VBox styleClass="modern-card">
                               <children>
-                                 <HBox styleClass="card-header">
-                                    <children>
-                                       <Label text="⚡" styleClass="card-icon" />
-                                    </children>
-                                 </HBox>
                                  <VBox styleClass="card-content">
                                     <children>
                                        <!-- 自动接受功能 -->
@@ -127,6 +72,23 @@
                                                    <Label fx:id="millisecondsLabel" text="秒" styleClass="label-secondary" />
                                                    <CheckBox fx:id="suppressReadyCheckCheckBox" onAction="#onSuppressReadyCheckToggled" 
                                                              text="抑制准备检查弹窗" styleClass="modern-checkbox" />
+                                                </children>
+                                             </HBox>
+                                          </children>
+                                       </VBox>
+                                       
+                                       <Separator styleClass="modern-separator" />
+                                       
+                                       <!-- 分路预设功能 -->
+                                       <VBox spacing="8">
+                                          <children>
+                                             <HBox spacing="16" alignment="CENTER_LEFT" fx:id="positionPresetsContainer">
+                                                <children>
+                                                   <Label fx:id="currentPositionLabel" text="当前分路" styleClass="label-primary" />
+                                                   <ComboBox fx:id="positionComboBox" onAction="#onPositionSelectionChanged" 
+                                                             prefWidth="200" promptText="选择分路" styleClass="modern-combobox" />
+                                                   <Button fx:id="editPositionConfigButton" onAction="#onEditPositionConfigClicked" 
+                                                           text="英雄设置" styleClass="btn,btn-secondary,btn-sm" />
                                                 </children>
                                              </HBox>
                                           </children>
@@ -194,23 +156,6 @@
                                        
                                        <Separator styleClass="modern-separator" />
                                        
-                                       <!-- 分路预设功能 -->
-                                       <VBox spacing="8">
-                                          <children>
-                                             <HBox spacing="16" alignment="CENTER_LEFT" fx:id="positionPresetsContainer">
-                                                <children>
-                                                   <Label fx:id="currentPositionLabel" text="当前分路" styleClass="label-primary" />
-                                                   <ComboBox fx:id="positionComboBox" onAction="#onPositionSelectionChanged" 
-                                                             prefWidth="150" promptText="选择分路" styleClass="modern-combobox" />
-                                                   <Button fx:id="editPositionConfigButton" onAction="#onEditPositionConfigClicked" 
-                                                           text="编辑配置" styleClass="btn,btn-secondary,btn-sm" />
-                                                </children>
-                                             </HBox>
-                                          </children>
-                                       </VBox>
-                                       
-                                       <Separator styleClass="modern-separator" />
-                                       
                                        <!-- 智能功能设置 -->
                                        <VBox spacing="8">
                                           <children>
@@ -233,26 +178,31 @@
                            <!-- 系统辅助功能组 -->
                            <VBox styleClass="modern-card">
                               <children>
-                                 <HBox styleClass="card-header">
-                                    <children>
-                                       <Label text="🔧" styleClass="card-icon" />
-                                       <VBox spacing="4">
-                                          <children>
-                                             <Label fx:id="systemAssistCardTitle" text="系统辅助功能" styleClass="card-title" />
-                                             <Label text="弹窗抑制和系统集成选项" styleClass="card-subtitle" />
-                                          </children>
-                                       </VBox>
-                                    </children>
-                                 </HBox>
                                  <VBox styleClass="card-content">
                                     <children>
                                        <!-- 系统集成选项 -->
                                        <VBox spacing="8">
                                           <children>
-                                             <Label text="系统集成选项" styleClass="label-primary" />
                                              <CheckBox fx:id="forceEnglishTrayMenuCheckBox" onAction="#onForceEnglishTrayMenuToggled" 
                                                        text="强制使用英文托盘菜单" styleClass="modern-checkbox" />
-                                             <Label fx:id="suppressionStatusLabel" text="弹窗抑制未启用" styleClass="label-secondary" visible="false" managed="false" />
+                                             <CheckBox fx:id="systemTrayCheckBox" onAction="#onSystemTrayToggled" 
+                                                       text="启用系统托盘" styleClass="modern-checkbox" />
+                                             <CheckBox fx:id="minimizeOnCloseCheckBox" onAction="#onMinimizeOnCloseToggled" 
+                                                       text="关闭窗口时最小化到托盘" styleClass="modern-checkbox" />
+                                             <CheckBox fx:id="autoStartCheckBox" onAction="#onAutoStartToggled" 
+                                                       text="开机自动启动" styleClass="modern-checkbox" />
+                                          </children>
+                                       </VBox>
+                                       
+                                       <Separator styleClass="modern-separator" />
+                                       
+                                       <!-- 连接设置选项 -->
+                                       <VBox spacing="8">
+                                          <children>
+                                            <CheckBox fx:id="autoConnectCheckBox" onAction="#onAutoConnectToggled" 
+                                                       text="启动时自动连接到游戏客户端" styleClass="modern-checkbox" />
+                                             <CheckBox fx:id="autoReconnectCheckBox" onAction="#onAutoReconnectToggled" 
+                                                       text="断线后自动重连" styleClass="modern-checkbox" />
                                           </children>
                                        </VBox>
                                     </children>
@@ -261,117 +211,10 @@
                            </VBox>
                         </children>
                      </VBox>
-                     
-                     <!-- 系统设置页面 -->
-                     <VBox fx:id="systemSettingsContent" styleClass="content-page" visible="false">
-                        <children>
-                           <!-- 常规设置卡片 -->
-                           <VBox styleClass="modern-card">
-                              <children>
-                                 <HBox styleClass="card-header">
-                                    <children>
-                                       <Label text="⚙️" styleClass="card-icon" />
-                                       <VBox spacing="4">
-                                          <children>
-                                             <Label fx:id="generalSettingsLabel" text="常规设置" styleClass="card-title" />
-                                             <Label text="应用程序的基本配置选项" styleClass="card-subtitle" />
-                                          </children>
-                                       </VBox>
-                                    </children>
-                                 </HBox>
-                                 <VBox styleClass="card-content">
-                                    <children>
-                                       <CheckBox fx:id="systemTrayCheckBox" onAction="#onSystemTrayToggled" 
-                                                 text="启用系统托盘" styleClass="modern-checkbox" />
-                                       <CheckBox fx:id="minimizeOnCloseCheckBox" onAction="#onMinimizeOnCloseToggled" 
-                                                 text="关闭窗口时最小化到托盘" styleClass="modern-checkbox" />
-                                       <CheckBox fx:id="autoStartCheckBox" onAction="#onAutoStartToggled" 
-                                                 text="开机自动启动" styleClass="modern-checkbox" />
-                                       <Label fx:id="autoStartStatusLabel" text="状态: 检查中" styleClass="label-secondary" />
-                                       <Label fx:id="trayStatusLabel" text="托盘状态: 检查中" styleClass="label-secondary" />
-                                    </children>
-                                 </VBox>
-                              </children>
-                           </VBox>
-                           
-                           <!-- 连接设置卡片 -->
-                           <VBox styleClass="modern-card">
-                              <children>
-                                 <HBox styleClass="card-header">
-                                    <children>
-                                       <Label text="🔗" styleClass="card-icon" />
-                                       <VBox spacing="4">
-                                          <children>
-                                             <Label fx:id="connectionSettingsLabel" text="连接设置" styleClass="card-title" />
-                                             <Label text="游戏客户端连接相关配置" styleClass="card-subtitle" />
-                                          </children>
-                                       </VBox>
-                                    </children>
-                                 </HBox>
-                                 <VBox styleClass="card-content">
-                                    <children>
-                                       <CheckBox fx:id="autoConnectCheckBox" onAction="#onAutoConnectToggled" 
-                                                 text="启动时自动连接到游戏客户端" styleClass="modern-checkbox" />
-                                       <CheckBox fx:id="autoReconnectCheckBox" onAction="#onAutoReconnectToggled" 
-                                                 text="断线后自动重连" styleClass="modern-checkbox" />
-                                    </children>
-                                 </VBox>
-                              </children>
-                           </VBox>
-                        </children>
-                     </VBox>
-                     
-                     <!-- 高级设置页面 -->
-                     <VBox fx:id="advancedContent" styleClass="content-page" visible="false">
-                        <children>
-                           <!-- 调试设置卡片 -->
-                           <VBox styleClass="modern-card">
-                              <children>
-                                 <HBox styleClass="card-header">
-                                    <children>
-                                       <Label text="🔧" styleClass="card-icon" />
-                                       <VBox spacing="4">
-                                          <children>
-                                             <Label fx:id="debugSettingsLabel" text="调试设置" styleClass="card-title" />
-                                             <Label text="开发者和高级用户选项" styleClass="card-subtitle" />
-                                          </children>
-                                       </VBox>
-                                    </children>
-                                 </HBox>
-                                 <VBox styleClass="card-content">
-                                    <children>
-                                       <HBox spacing="16" alignment="CENTER_LEFT">
-                                          <children>
-                                             <Label fx:id="logLevelLabel" text="日志级别" styleClass="label-primary" />
-                                             <ComboBox fx:id="logLevelComboBox" prefWidth="150" styleClass="modern-combobox">
-                                                <items>
-                                                   <FXCollections fx:factory="observableArrayList">
-                                                      <String fx:value="INFO" />
-                                                      <String fx:value="DEBUG" />
-                                                      <String fx:value="WARN" />
-                                                      <String fx:value="ERROR" />
-                                                   </FXCollections>
-                                                </items>
-                                             </ComboBox>
-                                          </children>
-                                       </HBox>
-                                    </children>
-                                 </VBox>
-                              </children>
-                           </VBox>
-                           
-                           <!-- 填充空间 -->
-                           <Region VBox.vgrow="ALWAYS" />
-                        </children>
-                     </VBox>
-                  </children>
-               </StackPane>
-                  </children>
-               </VBox>
-            </content>
-         </ScrollPane>
-      </children>
-   </HBox>
+               </children>
+            </VBox>
+         </content>
+      </ScrollPane>
    
    <!-- 底部状态栏 -->
    <HBox styleClass="bottom-status-bar">

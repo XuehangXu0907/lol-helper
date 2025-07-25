@@ -68,7 +68,7 @@ public class PositionConfigDialogController implements Initializable {
     }
     
     private void initializePositionSelector() {
-        positionSelector.getItems().addAll("global", "top", "jungle", "middle", "bottom", "utility");
+        positionSelector.getItems().addAll("default", "top", "jungle", "middle", "bottom", "utility");
         
         // 设置显示转换器
         positionSelector.setConverter(new javafx.util.StringConverter<String>() {
@@ -80,7 +80,7 @@ public class PositionConfigDialogController implements Initializable {
             @Override
             public String fromString(String string) {
                 // 反向查找位置键
-                for (String pos : new String[]{"global", "top", "jungle", "middle", "bottom", "utility"}) {
+                for (String pos : new String[]{"default", "top", "jungle", "middle", "bottom", "utility"}) {
                     if (translatePosition(pos).equals(string)) {
                         return pos;
                     }
@@ -448,7 +448,7 @@ public class PositionConfigDialogController implements Initializable {
         if (position == null) return languageManager.getString("common.unknown");
         
         switch (position.toLowerCase()) {
-            case "global": return languageManager.getString("position.global");
+            case "default": return languageManager.getString("position.global");
             case "top": return languageManager.getString("position.top");
             case "jungle": return languageManager.getString("position.jungle");
             case "middle": return languageManager.getString("position.middle");

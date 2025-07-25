@@ -21,6 +21,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ResourceBundle;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Pattern;
+import ch.qos.logback.classic.Level;
 
 /**
  * 日志查看器弹窗控制器
@@ -28,7 +29,7 @@ import java.util.regex.Pattern;
  */
 public class LogViewerDialogController implements Initializable {
     
-    private static final Logger logger = LoggerFactory.getLogger(LogViewerDialogController.class);
+    private static final org.slf4j.Logger logger = LoggerFactory.getLogger(LogViewerDialogController.class);
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
     
     // UI Components
@@ -39,6 +40,8 @@ public class LogViewerDialogController implements Initializable {
     @FXML private Button searchButton;
     @FXML private Button clearSearchButton;
     @FXML private ComboBox<String> logLevelFilterComboBox;
+    @FXML private Label runtimeLogLevelLabel;
+    @FXML private ComboBox<String> runtimeLogLevelComboBox;
     @FXML private Button copyButton;
     @FXML private Button exportButton;
     @FXML private Button clearLogButton;
@@ -67,6 +70,7 @@ public class LogViewerDialogController implements Initializable {
         setupEventHandlers();
         updateLogStats();
         optimizeScrollSpeed();
+        initializeRuntimeLogLevel();
     }
     
     /**
@@ -132,6 +136,11 @@ public class LogViewerDialogController implements Initializable {
         
         // 设置搜索字段回车事件
         searchTextField.setOnAction(e -> onSearchClicked());
+        
+        // 设置运行时日志级别默认值
+        if (runtimeLogLevelComboBox != null) {
+            runtimeLogLevelComboBox.setValue("INFO");
+        }
     }
     
     private void setupEventHandlers() {
@@ -336,6 +345,29 @@ public class LogViewerDialogController implements Initializable {
         onCloseClicked();
     }
     
+    @FXML
+    private void onRuntimeLogLevelChanged() {
+        String selectedLevel = runtimeLogLevelComboBox.getValue();
+        if (selectedLevel != null) {
+            setRuntimeLogLevel(selectedLevel);
+            String message = languageManager != null ? 
+                languageManager.getString("dialog.logViewer.logLevelChanged") + " " + selectedLevel :
+                "日志级别已设置为: " + selectedLevel;
+            statusLabel.setText(message);
+            
+            // 3秒后恢复状态文本
+            Platform.runLater(() -> {
+                try {
+                    Thread.sleep(3000);
+                    Platform.runLater(() -> statusLabel.setText(languageManager != null ? 
+                        languageManager.getString("dialog.logViewer.realTimeDisplay") : "实时显示"));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+    }
+    
     private void applyFilters() {
         String content = allLogContent;
         
@@ -427,6 +459,11 @@ public class LogViewerDialogController implements Initializable {
                 logLevelFilterComboBox.setValue(languageManager.getString("dialog.logViewer.allLevels"));
             }
             
+            // 更新运行时日志级别标签
+            if (runtimeLogLevelLabel != null) {
+                runtimeLogLevelLabel.setText(languageManager.getString("dialog.logViewer.runtimeLogLevel"));
+            }
+            
             // 更新状态标签
             if (statusLabel.getText().isEmpty() || statusLabel.getText().equals("实时显示") || statusLabel.getText().equals("Real-time display")) {
                 statusLabel.setText(languageManager.getString("dialog.logViewer.realTimeDisplay"));
@@ -443,5 +480,33 @@ public class LogViewerDialogController implements Initializable {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+    
+    private void initializeRuntimeLogLevel() {
+        if (runtimeLogLevelComboBox != null) {
+            // 获取当前日志级别
+            org.slf4j.Logger rootLogger = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+            if (rootLogger instanceof ch.qos.logback.classic.Logger) {
+                ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) rootLogger;
+                Level currentLevel = logbackLogger.getLevel();
+                if (currentLevel != null) {
+                    runtimeLogLevelComboBox.setValue(currentLevel.toString());
+                }
+            }
+        }
+    }
+    
+    private void setRuntimeLogLevel(String levelStr) {
+        try {
+            Level level = Level.toLevel(levelStr);
+            org.slf4j.Logger rootLogger = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+            if (rootLogger instanceof ch.qos.logback.classic.Logger) {
+                ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) rootLogger;
+                logbackLogger.setLevel(level);
+                logger.info("运行时日志级别已设置为: {}", level);
+            }
+        } catch (Exception e) {
+            logger.error("设置日志级别失败: {}", levelStr, e);
+        }
     }
 }
